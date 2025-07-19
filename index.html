@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <title>Pravý Blok: Parlamentní Střet</title>
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            margin: 0;
+            padding: 1rem;
+            overflow: hidden; /* Zabrání rolování stránky */
+        }
+        h1, h2 {
+            color: #ffcc00;
+            text-shadow: 2px 2px #ff0000;
+            text-transform: uppercase;
+        }
+        canvas {
+            border: 5px solid #ff0000;
+            background-color: #000;
+            /* Různá pozadí pro levely se budou nastavovat v JS */
+        }
+        #herni-info {
+            display: flex;
+            justify-content: space-between;
+            width: 800px;
+            padding: 10px;
+            background: #222;
+            border: 3px solid #ff0000;
+            margin-top: 10px;
+        }
+        #herni-info div { padding: 5px 10px; }
+        #ukoly { border-left: 2px solid #ffcc00; }
+    </style>
+</head>
+<body>
+
+    <h1>Volte Pravý Blok: Boj Nikdy nekončí!</h1>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div id="herni-info">
+        <div id="zdravi">ZDRAVÍ: 100%</div>
+        <div id="skore">SKÓRE PRAVDY: 0</div>
+        <div id="ukoly">
+            <strong>AKTUÁLNÍ ÚKOL:</strong>
+            <span id="text-ukolu"></span>
+        </div>
+    </div>
+    <h2>POHYB: ŠIPKY | INTERAKCE: E | SKOK: MEZERNÍK</h2>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // --- HERNÍ STAV A PROMENNE ---
+        let stavHry = 'start'; // 'start', 'hraje', 'vyhra', 'prohra'
+        let aktualniUroven = 1;
+        let hrac = {};
+        let klavesy = {};
+        let platformy = [];
+        let nepratele = [];
+        let sberatelne = [];
+        let npcs = [];
+        let vychody = [];
+        let psychotronickyRusic = {};
+        let skore = 0;
+        let aktualniUkol = {};
+        let dialog = null;
+
+        const gravitace = 0.5;
+
+        const skiny = {
+            hrac: '#00ff00',
+            platforma: '#8B4513',
+            platformaParlament: '#4a0000', // Mahagonové dřevo v parlamentu
+            platformaLaborator: '#cccccc', // Sterilní kov
+            agentGRU: '#ff0000',
+            medialniManipulator: '#800080',
+            zkorumpovanyPolitik: '#FFA500', // Oranžová vesta, symbol zrady
+            strelaLzi: '#ff4d4d',
+            cistaPravda: '#ffffff',
+            hlasProReferendum: '#ffff00',
+            dulezityDokument: '#00ffff', // Modré desky
+            cestnyObcan: '#0000ff',
+            vysilacLzi: '#555555',
+            bossStavaKGB: '#333333', // Temný oblek miliardáře
+            vchod: '#b38f00'
+        };
+
+        const pozadi = {
+            ulice: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cg fill-rule='evenodd'%3E%3Cg fill='%232a0000' fill-opacity='0.4'%3E%3Cpath opacity='.5' d='M96 95h4v1h-4v-1zm-7 0h1v1h-1v-1zm-7 0h1v1h-1v-1zm-7 0h1v1h-1v-1zm-7 0h1v1h-1v-1zm-7 0h1v1h-1v-1zm-7 0h1v1h-1v-1zm-7 0h1v1h-1v-1zm-7 0h1v1h-1v-1zm-7 0h1v1h-1v-1zm-7 0h1v1h-1v-1zm-7 0h1v1h-1v-1zm-7 0h1v1h-1v-1z'/%3E%3Cpath d='M6 95h4v1H6v-1zm7 0h1v1H13v-1zm7 0h1v1h-1v-1zm7 0h1v1h-1v-1zm7 0h1v1h-1v-1zm7 0h1v1h-1v-1zm7 0h1v1h-1v-1zm7 0h1v1h-1v-1zm7 0h1v1h-1v-1zm7 0h1v1h-1v-1zm7 0h1v1h-1v-1zm7 0h1v1h-1v-1zm7 0h1v1h-1v-1z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
+            parlament: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 80' width='80' height='80'%3E%3Crect fill='%233a0505' width='80' height='80'/%3E%3Cg fill-opacity='0.2' fill='%23ffbf00'%3E%3Crect x='0' y='0' width='10' height='10'/%3E%3Crect x='20' y='0' width='10' height='10'/%3E%3Crect x='40' y='0' width='10' height='10'/%3E%3Crect x='60' y='0' width='10' height='10'/%3E%3Crect x='10' y='10' width='10' height='10'/%3E%3Crect x='30' y='10' width='10' height='10'/%3E%3Crect x='50' y='10' width='10' height='10'/%3E%3Crect x='70' y='10' width='10' height='10'/%3E%3Crect x='0' y='20' width='10' height='10'/%3E%3Crect x='20' y='20' width='10' height='10'/%3E%3Crect x='40' y='20' width='10' height='10'/%3E%3Crect x='60' y='20' width='10' height='10'/%3E%3Crect x='10' y='30' width='10' height='10'/%3E%3Crect x='30' y='30' width='10' height='10'/%3E%3Crect x='50' y='30' width='10' height='10'/%3E%3Crect x='70' y='30' width='10' height='10'/%3E%3Crect x='0' y='40' width='10' height='10'/%3E%3Crect x='20' y='40' width='10' height='10'/%3E%3Crect x='40' y='40' width='10' height='10'/%3E%3Crect x='60' y='40' width='10' height='10'/%3E%3Crect x='10' y='50' width='10' height='10'/%3E%3Crect x='30' y='50' width='10' height='10'/%3E%3Crect x='50' y='50' width='10' height='10'/%3E%3Crect x='70' y='50' width='10' height='10'/%3E%3Crect x='0' y='60' width='10' height='10'/%3E%3Crect x='20' y='60' width='10' height='10'/%3E%3Crect x='40' y='60' width='10' height='10'/%3E%3Crect x='60' y='60' width='10' height='10'/%3E%3Crect x='10' y='70' width='10' height='10'/%3E%3Crect x='30' y='70' width='10' height='10'/%3E%3Crect x='50' y='70' width='10' height='10'/%3E%3Crect x='70' y='70' width='10' height='10'/%3E%3C/g%3E%3C/svg%3E\")",
+            diagHuman: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Cg fill-rule='evenodd'%3E%3Cg fill='%23ff0000' fill-opacity='0.4'%3E%3Cpath d='M0 0h20v.5H0zM0 1h20v.5H0zM0 2h20v.5H0zM0 3h20v.5H0zM0 4h20v.5H0zM0 5h20v.5H0zM0 6h20v.5H0zM0 7h20v.5H0zM0 8h20v.5H0zM0 9h20v.5H0zM0 10h20v.5H0zM0 11h20v.5H0zM0 12h20v.5H0zM0 13h20v.5H0zM0 14h20v.5H0zM0 15h20v.5H0zM0 16h20v.5H0zM0 17h20v.5H0zM0 18h20v.5H0zM0 19h20v.5H0z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")"
+        }
+
+        function resetHrace() {
+            hrac = { x: 50, y: 500, width: 40, height: 60, rychlost: 5, rychlostY: 0, skace: true, zdravi: 100 };
+        }
+
+        function nastavitUroven(cisloUrovne) {
+            aktualniUroven = cisloUrovne;
+            // Resetovat pole pred nactenim nove urovne
+            platformy = []; nepratele = []; sberatelne = []; npcs = []; vychody = []; psychotronickyRusic = {};
+            dialog = null;
+            resetHrace();
+
+            switch (cisloUrovne) {
+                case 1: inicializovatUroven1(); break;
+                case 2: inicializovatUroven2_Parlament(); break;
+                case 3: inicializovatUroven3_DiagHuman(); break;
+            }
+        }
+
+        function inicializovatUroven1() {
+            canvas.style.backgroundImage = pozadi.ulice;
+            aktualizovatUkol(0, "Najdi čestného občana a zeptej se ho na cestu.");
+
+            platformy = [ { x: 0, y: 580, width: canvas.width, height: 20, typ: 'platforma' }, { x: 150, y: 480, width: 200, height: 20, typ: 'platforma' }, { x: 400, y: 400, width: 150, height: 20, typ: 'platforma' }, { x: 600, y: 300, width: 180, height: 20, typ: 'platforma' }, { x: 450, y: 200, width: 100, height: 20, typ: 'platforma' }, { x: 200, y: 150, width: 150, height: 20, typ: 'platforma' } ];
+            nepratele = [ { id: 1, typ: 'agentGRU', x: 450, y: 350, width: 40, height: 50, startX: 400, endX: 530, smer: 1, strely: [], cooldown: 120 }, { id: 2, typ: 'medialniManipulator', x: 200, y: 100, width: 40, height: 50, startX: 200, endX: 330, smer: 1 } ];
+            sberatelne = [ { typ: 'hlasProReferendum', x: 180, y: 450, width: 20, height: 20, sebrano: false }, { typ: 'hlasProReferendum', x: 480, y: 370, width: 20, height: 20, sebrano: false }, { typ: 'hlasProReferendum', x: 620, y: 270, width: 20, height: 20, sebrano: false }, { typ: 'cistaPravda', x: 250, y: 120, width: 25, height: 25, sebrano: false } ];
+            npcs = [ { id: 1, typ: 'cestnyObcan', x: 700, y: 520, width: 40, height: 60, dialogy: [ { ukolId: 0, text: "Vítejte! Dnešní média a politici jsou nástroje KGB a GRU! Musíme zničit vysílače lží, které otravují mysl našich lidí! Jsou na nejvyšších místech této zóny." }, { ukolId: 1, text: "Výborně! Nyní musíme shromáždit dostatek hlasů pro referendum! Najděte 3 podpisové archy." }, { ukolId: 2, text: "Skvělá práce! Teď se musíte dostat do 'Prohnilého parlamentu' a předložit naši vůli. Brána je na konci zóny." }, { ukolId: 3, text: "Hodně štěstí v parlamentu! Věřte sám sobě, ne jim!" }, ] } ];
+            platformy.push({ id: 'vysilac1', typ: 'vysilacLzi', x: 750, y: 260, width: 30, height: 40, zniceno: false });
+            platformy.push({ id: 'vysilac2', typ: 'vysilacLzi', x: 490, y: 160, width: 30, height: 40, zniceno: false });
+            // Přidán viditelný vchod do další úrovně
+            vychody.push({ x: canvas.width - 60, y: 580 - 80, width: 50, height: 80, typ: 'vchod', cil: 2 });
+        }
+
+        function inicializovatUroven2_Parlament() {
+            canvas.style.backgroundImage = pozadi.parlament;
+            skore += 1000; // Bonus za postup
+            aktualizovatUkol(4, "Odhalte korupci! Najděte 3 dokumenty a zničte skrytý psychotronický rušič GRU!");
+
+            // Definice psychotronického rušiče
+            psychotronickyRusic = { x: 385, y: 195, width: 30, height: 25, aktivni: true, typ: 'rusic' };
+
+            platformy = [
+                { x: 0, y: 580, width: canvas.width, height: 20, typ: 'platformaParlament' }, // Podlaha
+                { x: 100, y: 500, width: 150, height: 20, typ: 'platformaParlament' }, { x: 550, y: 500, width: 150, height: 20, typ: 'platformaParlament' },
+                { x: 250, y: 420, width: 300, height: 20, typ: 'platformaParlament' }, { x: 150, y: 320, width: 100, height: 20, typ: 'platformaParlament' },
+                { x: 550, y: 320, width: 100, height: 20, typ: 'platformaParlament' }, { x: 350, y: 220, width: 100, height: 20, typ: 'platformaParlament' },
+            ];
+            nepratele = [
+                { id: 3, typ: 'zkorumpovanyPolitik', x: 120, y: 450, width: 40, height: 50, startX: 120, endX: 230, smer: 1 },
+                { id: 4, typ: 'zkorumpovanyPolitik', x: 570, y: 450, width: 40, height: 50, startX: 570, endX: 680, smer: 1 },
+                { id: 5, typ: 'agentGRU', x: 300, y: 370, width: 40, height: 50, startX: 270, endX: 500, smer: 1, strely: [], cooldown: 100 },
+                { id: 6, typ: 'zkorumpovanyPolitik', x: 380, y: 170, width: 40, height: 50, startX: 380, endX: 380, smer: 0 }
+             ];
+            sberatelne = [
+                { typ: 'dulezityDokument', x: 600, y: 290, width: 25, height: 20, sebrano: false }, { typ: 'dulezityDokument', x: 180, y: 290, width: 25, height: 20, sebrano: false },
+                { typ: 'dulezityDokument', x: 750, y: 550, width: 25, height: 20, sebrano: false }, { typ: 'cistaPravda', x: 400, y: 550, width: 25, height: 25, sebrano: false }
+            ];
+             // Přidán viditelný vchod do další úrovně
+            vychody.push({ x: canvas.width - 60, y: 580 - 80, width: 50, height: 80, typ: 'vchod', cil: 3 });
+        }
+
+        function inicializovatUroven3_DiagHuman() {
+            canvas.style.backgroundImage = pozadi.diagHuman;
+            canvas.style.backgroundColor = '#e0e0e0';
+            skore += 2000; // Bonus za postup
+            ukazDialog("Kauza Diag Human", "Pronikl jsi do sídla, kde se skrývají ti, kdo stojí za 'tunelem plným krve'. Miliardář Stava (KGB?) a jeho přátelé okradli náš stát. Získej zpět ukradený majetek a poraz hlavního viníka!");
+            aktualizovatUkol(5, "Najdi 3 kufry s ukradeným majetkem a postav se agentu Stávovi (KGB?).");
+
+            platformy = [
+                { x: 0, y: 580, width: canvas.width, height: 20, typ: 'platformaLaborator' }, { x: 100, y: 480, width: 100, height: 15, typ: 'platformaLaborator' },
+                { x: 250, y: 400, width: 100, height: 15, typ: 'platformaLaborator' }, { x: 400, y: 320, width: 100, height: 15, typ: 'platformaLaborator' },
+                { x: 550, y: 240, width: 100, height: 15, typ: 'platformaLaborator' }, { x: 350, y: 160, width: 150, height: 20, typ: 'platformaLaborator' }, // Boss platforma
+                { x: 0, y: 250, width: 150, height: 15, typ: 'platformaLaborator' },
+            ];
+            nepratele = [
+                { id: 7, typ: 'agentGRU', x: 270, y: 350, width: 40, height: 50, startX: 260, endX: 340, smer: 1, strely: [], cooldown: 150 },
+                { id: 8, typ: 'medialniManipulator', x: 50, y: 200, width: 40, height: 50, startX: 20, endX: 130, smer: 1 },
+                // BOSS
+                { id: 99, typ: 'bossStavaKGB', x: 400, y: 100, width: 60, height: 60, zdravi: 200, startX: 360, endX: 480, smer: 1 }
+            ];
+            sberatelne = [
+                { typ: 'dulezityDokument', nazev: 'kufr', x: 120, y: 450, width: 30, height: 20, sebrano: false },
+                { typ: 'dulezityDokument', nazev: 'kufr', x: 570, y: 210, width: 30, height: 20, sebrano: false },
+                { typ: 'dulezityDokument', nazev: 'kufr', x: 20, y: 220, width: 30, height: 20, sebrano: false },
+                { typ: 'cistaPravda', x: 300, y: 550, width: 25, height: 25, sebrano: false }
+            ];
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(e.code) > -1) { e.preventDefault(); }
+            klavesy[e.code] = true;
+            if (e.code === 'KeyE' && dialog) { zavritDialog(); }
+            else if (e.code === 'KeyE') { zkusitInterakci(); }
+        });
+        window.addEventListener('keyup', (e) => { klavesy[e.code] = false; });
+
+        function vykresli() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const typPlatformy = aktualniUroven === 1 ? 'platforma' : (aktualniUroven === 2 ? 'platformaParlament' : 'platformaLaborator');
+
+            platformy.forEach(p => {
+                ctx.fillStyle = (p.typ === 'vysilacLzi' && !p.zniceno) ? skiny.vysilacLzi : skiny[typPlatformy];
+                if (p.typ === 'vysilacLzi' && p.zniceno) { ctx.fillStyle = '#ff0000'; }
+                ctx.fillRect(p.x, p.y, p.width, p.height);
+            });
+            
+            vychody.forEach(v => {
+                ctx.fillStyle = skiny.vchod;
+                ctx.fillRect(v.x, v.y, v.width, v.height);
+                ctx.fillStyle = '#000'; ctx.font = 'bold 14px Courier New';
+                ctx.fillText("BRÁNA", v.x + 4, v.y + v.height / 2);
+            });
+
+            if (aktualniUroven === 2 && psychotronickyRusic.aktivni) {
+                ctx.fillStyle = '#ff00ff';
+                ctx.globalAlpha = 0.5 + Math.abs(Math.sin(Date.now() / 200)) * 0.5;
+                ctx.fillRect(psychotronickyRusic.x, psychotronickyRusic.y, psychotronickyRusic.width, psychotronickyRusic.height);
+                ctx.globalAlpha = 1;
+            }
+
+            sberatelne.forEach(s => { if (!s.sebrano) { ctx.fillStyle = skiny[s.typ]; ctx.fillRect(s.x, s.y, s.width, s.height); } });
+            npcs.forEach(npc => {
+                ctx.fillStyle = skiny[npc.typ]; ctx.fillRect(npc.x, npc.y, npc.width, npc.height);
+                ctx.fillStyle = '#ffff00'; ctx.font = '24px Courier New'; ctx.fillText('!', npc.x + npc.width / 2 - 5, npc.y - 10);
+            });
+            nepratele.forEach(n => {
+                ctx.fillStyle = skiny[n.typ];
+                ctx.globalAlpha = n.zdravi ? n.zdravi / 200 : 1;
+                ctx.fillRect(n.x, n.y, n.width, n.height);
+                ctx.globalAlpha = 1;
+                if (n.typ === 'agentGRU') { n.strely.forEach(s => { ctx.fillStyle = skiny.strelaLzi; ctx.fillRect(s.x, s.y, s.width, s.height); }); }
+            });
+
+            ctx.fillStyle = skiny.hrac;
+            ctx.fillRect(hrac.x, hrac.y, hrac.width, hrac.height);
+
+            if (dialog) vykresliDialog();
+        }
+
+        function aktualizuj() {
+            if (dialog) return;
+
+            // Hráč
+            if (klavesy['ArrowLeft']) hrac.x -= hrac.rychlost;
+            if (klavesy['ArrowRight']) hrac.x += hrac.rychlost;
+            if (klavesy['Space'] && !hrac.skace) { hrac.rychlostY = -12; hrac.skace = true; }
+            hrac.y += hrac.rychlostY;
+            hrac.rychlostY += gravitace;
+
+            // Kolize s platformami
+            hrac.skace = true;
+            platformy.forEach(p => {
+                if (hrac.y + hrac.height > p.y && hrac.y < p.y + p.height && hrac.x + hrac.width > p.x && hrac.x < p.x + p.width) {
+                    if (hrac.rychlostY > 0 && hrac.y + hrac.height - hrac.rychlostY <= p.y) {
+                        hrac.y = p.y - hrac.height; hrac.rychlostY = 0; hrac.skace = false;
+                        if (p.typ === 'vysilacLzi' && !p.zniceno) { p.zniceno = true; skore += 50; zkontrolujUkol(); }
+                    } else if (hrac.rychlostY < 0 && hrac.y - hrac.rychlostY >= p.y + p.height) {
+                         hrac.y = p.y + p.height; hrac.rychlostY = 0;
+                    }
+                }
+            });
+
+            // Hranice obrazovky
+            if (hrac.x < 0) hrac.x = 0;
+            if (hrac.x + hrac.width > canvas.width) hrac.x = canvas.width - hrac.width;
+            if (hrac.y > canvas.height) hrac.zdravi = 0;
+
+            // Přechod do další úrovně přes bránu
+            vychody.forEach(v => {
+                if (jeKolize(hrac, v)) {
+                    if ((aktualniUroven === 1 && aktualniUkol.id === 3 && aktualniUkol.splneno) ||
+                        (aktualniUroven === 2 && aktualniUkol.id === 4 && aktualniUkol.splneno)) {
+                        nastavitUroven(v.cil);
+                    }
+                }
+            });
+
+            // Nepřátelé
+            nepratele.forEach(n => {
+                if (n.smer !== 0) n.x += n.smer * (n.typ === 'bossStavaKGB' ? 0.5 : 2);
+                if (n.x > n.endX || n.x < n.startX) n.smer *= -1;
+                if (n.typ === 'agentGRU' && --n.cooldown <= 0) { n.strely.push({ x: n.x, y: n.y + 20, width: 10, height: 10, smer: n.smer }); n.cooldown = 120; }
+                if(n.typ === 'agentGRU') n.strely.forEach((s, i) => {
+                    s.x += s.smer * 4;
+                    if (s.x < 0 || s.x > canvas.width) n.strely.splice(i, 1);
+                    if (jeKolize(hrac, s)) { zranHrace(10, 'dezinformací GRU'); n.strely.splice(i, 1); }
+                });
+                if (jeKolize(hrac, n)) {
+                    if (hrac.rychlostY > 0 && hrac.y + hrac.height - hrac.rychlostY <= n.y) {
+                        if (n.typ === 'bossStavaKGB') {
+                            n.zdravi -= 25; skore += 100; hrac.rychlostY = -8;
+                            if (n.zdravi <= 0) { nepratele = nepratele.filter(nep => nep.id !== n.id); zkontrolujUkol(); }
+                        } else { nepratele = nepratele.filter(nep => nep.id !== n.id); skore += 100; hrac.rychlostY = -5; }
+                    } else { zranHrace(0.5, 'střetem s agentem'); }
+                }
+            });
+
+            // Psychotronický rušič v parlamentu
+            if (aktualniUroven === 2 && psychotronickyRusic.aktivni) {
+                zranHrace(0.05, 'psychotronickým rušením');
+                if (jeKolize(hrac, psychotronickyRusic) && hrac.rychlostY > 0 && hrac.y + hrac.height - hrac.rychlostY <= psychotronickyRusic.y) {
+                    psychotronickyRusic.aktivni = false; skore += 500;
+                    ukazDialog("ÚSPĚCH!", "Zničil jsi psychotronický rušič GRU a osvobodil mysl přítomných! Boj pokračuje!");
+                    zkontrolujUkol();
+                }
+            }
+
+            // Sběratelné předměty
+            sberatelne.forEach(s => {
+                if (!s.sebrano && jeKolize(hrac, s)) {
+                    s.sebrano = true;
+                    if (s.typ === 'cistaPravda') hrac.zdravi = Math.min(100, hrac.zdravi + 25); else skore += 50;
+                    zkontrolujUkol();
+                }
+            });
+
+            if (hrac.zdravi <= 0) stavHry = 'prohra';
+        }
+
+        function zkontrolujUkol() {
+            switch(aktualniUkol.id) {
+                case 1:
+                    if (platformy.filter(p => p.typ === 'vysilacLzi' && p.zniceno).length >= 2) {
+                        aktualniUkol.splneno = true; ukazDialog("Úspěch!", "Zničil jsi vysílače lží! Vrať se za čestným občanem.");
+                    }
+                    break;
+                case 2:
+                    if (sberatelne.filter(s => s.typ === 'hlasProReferendum' && s.sebrano).length >= 3) {
+                        aktualniUkol.splneno = true; ukazDialog("Máme je!", "Shromáždil jsi dostatek hlasů! Promluv si znovu s naším spojencem.");
+                    }
+                    break;
+                case 4:
+                    const dokumenty = sberatelne.filter(s => s.typ === 'dulezityDokument' && s.sebrano).length;
+                    if (dokumenty >= 3 && !psychotronickyRusic.aktivni) {
+                        aktualniUkol.splneno = true;
+                        ukazDialog("Důkazy Zajištěny!", "Máte důkazy o vlastizradě a zničili jste nástroj GRU! Nyní opusťte parlament bránou vpravo a odhalte pravdu světu v kauze Diag Human!");
+                    }
+                    break;
+                case 5:
+                    const kufry = sberatelne.filter(s => s.nazev === 'kufr' && s.sebrano).length;
+                    const bossPorazen = !nepratele.some(n => n.typ === 'bossStavaKGB');
+                    if (kufry >= 3 && bossPorazen) { aktualniUkol.splneno = true; stavHry = 'vyhra'; }
+                    break;
+            }
+        }
+
+        function smyckaHry() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (stavHry === 'start') {
+                ctx.fillStyle = '#ffcc00'; ctx.font = '30px Courier New'; ctx.textAlign = 'center';
+                ctx.fillText("NEVĚŘÍTE POLITIKŮM A JEJICH NOVINÁŘŮM?", canvas.width/2, 200);
+                ctx.font = '40px Courier New'; ctx.fillText("NO KONEČNĚ!", canvas.width/2, 250);
+                ctx.font = '24px Courier New'; ctx.fillStyle = '#fff';
+                ctx.fillText("Stiskněte ENTER pro zahájení boje za PRAVDU!", canvas.width/2, 350);
+                if (klavesy['Enter']) { nastavitUroven(1); stavHry = 'hraje'; }
+            } else if (stavHry === 'hraje') {
+                aktualizuj(); vykresli();
+                document.getElementById('zdravi').textContent = `ZDRAVÍ: ${Math.ceil(hrac.zdravi)}%`;
+                document.getElementById('skore').textContent = `SKÓRE PRAVDY: ${skore}`;
+                document.getElementById('text-ukolu').textContent = aktualniUkol.popis;
+            } else if (stavHry === 'prohra') {
+                ctx.fillStyle = '#ff0000'; ctx.font = '30px Courier New'; ctx.textAlign = 'center';
+                ctx.fillText("ZLOČINECKÉ STRUKTURY KGB/GRU ZVÍTĚZILY!", canvas.width/2, 250);
+                ctx.font = '24px Courier New'; ctx.fillStyle = '#fff';
+                ctx.fillText("Stiskněte ENTER a zkuste to znovu. Boj nikdy nekončí!", canvas.width/2, 350);
+                if (klavesy['Enter']) { stavHry = 'start'; skore = 0; }
+            } else if (stavHry === 'vyhra') {
+                ctx.fillStyle = '#00ff00'; ctx.font = '30px Courier New'; ctx.textAlign = 'center';
+                wrapText("VÍTĚZSTVÍ PRAVDY! DÍKY VÁM JSOU ZLOČINCI Z KGB/GRU ODHALENI A POLITICI BUDOU ODVOLATELNÍ PŘÍMO OBČANY!", canvas.width/2, 250, canvas.width - 100, 35);
+                ctx.font = '24px Courier New'; ctx.fillStyle = '#fff';
+                ctx.fillText("Stiskněte ENTER a šiřte pravdu dál!", canvas.width/2, 400);
+                if (klavesy['Enter']) { stavHry = 'start'; skore = 0; }
+            }
+
+            requestAnimationFrame(smyckaHry);
+        }
+
+        // --- POMOCNÉ FUNKCE ---
+        function zranHrace(kolik, cim) { hrac.zdravi -= kolik; if (hrac.zdravi < 0) hrac.zdravi = 0; }
+        function jeKolize(obj1, obj2) { return obj1.x < obj2.x + obj2.width && obj1.x + obj1.width > obj2.x && obj1.y < obj2.y + obj2.height && obj1.y + obj1.height > obj2.y; }
+        function aktualizovatUkol(id, popis) { aktualniUkol = { id, popis, splneno: false }; }
+        function ukazDialog(nadpis, text) { dialog = { nadpis, text }; }
+        function zavritDialog() { dialog = null; }
+        function zkusitInterakci() {
+            npcs.forEach(npc => {
+                if (Math.abs(hrac.x - npc.x) < 70 && Math.abs(hrac.y - npc.y) < 70) {
+                    let dialogInfo = npc.dialogy.find(d => d.ukolId === aktualniUkol.id && (d.ukolId === 0 || aktualniUkol.splneno));
+                    if (dialogInfo) {
+                        ukazDialog("Rozhovor s čestným občanem", dialogInfo.text);
+                        aktualizovatUkol(aktualniUkol.id + 1, "Nový úkol se brzy objeví...");
+                        if (aktualniUkol.id === 1) aktualniUkol.popis = "Znič 2 vysílače lží (šedé věže).";
+                        if (aktualniUkol.id === 2) aktualniUkol.popis = "Seber 3 podpisové archy (žluté čtverečky).";
+                        if (aktualniUkol.id === 3) {
+                            aktualniUkol.popis = "Dostaň se do parlamentu skrz bránu vpravo.";
+                            aktualniUkol.splneno = true;
+                        }
+                    }
+                }
+            });
+        }
+        function vykresliDialog() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'; ctx.fillRect(100, canvas.height/2 - 100, canvas.width - 200, 200);
+            ctx.strokeStyle = '#ffcc00'; ctx.strokeRect(100, canvas.height/2 - 100, canvas.width - 200, 200);
+            ctx.fillStyle = '#ffcc00'; ctx.font = 'bold 20px Courier New'; ctx.textAlign = 'center';
+            ctx.fillText(dialog.nadpis, canvas.width / 2, canvas.height/2 - 70);
+            ctx.fillStyle = '#ffffff'; ctx.font = '16px Courier New';
+            wrapText(dialog.text, canvas.width / 2, canvas.height/2 - 30, canvas.width - 240, 20);
+            ctx.fillStyle = '#aaaaaa'; ctx.font = '14px Courier New';
+            ctx.fillText("Stiskněte 'E' pro pokračování", canvas.width / 2, canvas.height/2 + 80);
+            ctx.textAlign = 'left';
+        }
+        function wrapText(text, x, y, maxWidth, lineHeight) {
+            const words = text.split(' '); let line = '';
+            for(let n = 0; n < words.length; n++) {
+                let testLine = line + words[n] + ' '; let metrics = ctx.measureText(testLine);
+                if (metrics.width > maxWidth && n > 0) { ctx.fillText(line, x, y); line = words[n] + ' '; y += lineHeight; } else { line = testLine; }
+            }
+            ctx.fillText(line, x, y);
+        }
+
+        // Spuštění hry
+        smyckaHry();
+    </script>
+</body>
+</html>
