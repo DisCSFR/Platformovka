@@ -39,7 +39,7 @@ function ck(c){if(JP[c]){JP[c]=false;return true}return false}
 let st='menu',lv=0,lives=3,score=0,fr=0;
 let P={},cam={x:0},plats=[],ens=[],npcs=[],its=[],exs=[],hzs=[],projs=[],parts=[];
 let obj={t:'',d:false},hasKyv=false,dq=[],cd=null,kvs=null,lvW=W,dtmr=0,letmr=0;
-const GR=0.6,PS=4,JV=-11.5;
+const GR=0.4,PS=2.8,JV=-9.2;
 
 // === HELPERS ===
 function col(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
@@ -138,13 +138,13 @@ ens.forEach(e=>{if(!e.al)return;
 e.x+=e.dr*e.sp;if(e.x>e.ex){e.x=e.ex;e.dr=-1}if(e.x<e.sx){e.x=e.sx;e.dr=1}
 if(e.tp==='gru'||e.tp==='boss'||e.tp==='mb'){
 e.cd--;if(e.cd<=0){let dx=P.x-e.x;let sd=dx>0?1:-1;
-projs.push({x:e.x+e.w/2,y:e.y+e.h/2-5,vx:sd*(e.tp==='boss'?5:4),vy:0,w:10,h:8,en:true,dm:e.tp==='boss'?12:8});
+projs.push({x:e.x+e.w/2,y:e.y+e.h/2-5,vx:sd*(e.tp==='boss'?3.2:2.5),vy:0,w:10,h:8,en:true,dm:e.tp==='boss'?12:8});
 e.cd=e.cdm}}
-if(e.tp==='boss'&&e.ph){let r=e.hp/e.mhp;if(r<.33&&e.ph!==3){e.ph=3;e.sp=4;e.cdm=40}else if(r<.66&&e.ph<2){e.ph=2;e.sp=3;e.cdm=60}}
-if(col(P,e)){if(P.vy>0&&P.y+P.h-P.vy<=e.y+8){P.vy=-8;
+if(e.tp==='boss'&&e.ph){let r=e.hp/e.mhp;if(r<.33&&e.ph!==3){e.ph=3;e.sp=2.5;e.cdm=55}else if(r<.66&&e.ph<2){e.ph=2;e.sp=1.8;e.cdm=75}}
+if(col(P,e)){if(P.vy>0&&P.y+P.h-P.vy<=e.y+8){P.vy=-6;
 if(e.tp==='boss'){e.hp-=25;score+=50;sp(e.x+e.w/2,e.y,'#ffcc00',10);if(e.hp<=0){e.al=false;score+=500;sp(e.x+e.w/2,e.y+e.h/2,'#ff0000',30);chkObj()}}
 else if(e.tp==='mb'){e.hp-=30;score+=30;sp(e.x+e.w/2,e.y,'#ffcc00',8);if(e.hp<=0){e.al=false;score+=300;sp(e.x+e.w/2,e.y+e.h/2,'#ff0000',20);chkObj()}}
-else{e.al=false;score+=100;P.vy=-6;sp(e.x+e.w/2,e.y+e.h/2,'#ff4444',10);chkObj()}}
+else{e.al=false;score+=100;P.vy=-5;sp(e.x+e.w/2,e.y+e.h/2,'#ff4444',10);chkObj()}}
 else hurt(e.tp==='boss'?15:8)}});
 for(let i=projs.length-1;i>=0;i--){let p=projs[i];p.x+=p.vx;p.y+=p.vy;
 if(p.x<cam.x-50||p.x>cam.x+W+50){projs.splice(i,1);continue}
@@ -155,7 +155,7 @@ ens=ens.filter(e=>e.al)}
 function updIt(){
 its.forEach(it=>{if(it.col)return;
 if(it.tp==='loud'||it.tp==='press'||it.tp==='jam'){
-if(col(P,it)&&P.vy>0&&P.y+P.h-P.vy<=it.y+4){it.col=true;P.vy=-8;score+=(it.tp==='jam'?500:100);
+if(col(P,it)&&P.vy>0&&P.y+P.h-P.vy<=it.y+4){it.col=true;P.vy=-6;score+=(it.tp==='jam'?500:100);
 sp(it.x+it.w/2,it.y,it.tp==='jam'?'#cc00cc':'#888',12);
 if(it.tp==='jam')dlg("USPECH!","Znicil jsi PSYCHOTRONICKY RUSIC GRU! Mysl pritomnych je OSVOBOZENA!");
 chkObj()}
@@ -266,9 +266,9 @@ sObj("Najdi Sidericke Kyvadlo a prover sousedku")}
 function lv1(){ // Ulice Prahy
 lvW=2400;score+=500;
 plats.push({x:0,y:580,w:600,h:20},{x:150,y:480,w:200,h:16},{x:500,y:420,w:150,h:16},{x:700,y:500,w:200,h:16},{x:950,y:420,w:120,h:16},{x:1100,y:580,w:400,h:20},{x:1200,y:480,w:100,h:16},{x:1350,y:400,w:150,h:16},{x:1550,y:500,w:200,h:16},{x:1800,y:580,w:600,h:20},{x:1900,y:460,w:150,h:16},{x:2100,y:380,w:120,h:16});
-ens.push({tp:'gru',x:500,y:370,w:35,h:45,sx:450,ex:630,dr:1,sp:2,hp:1,mhp:1,al:true,cd:120,cdm:120});
-ens.push({tp:'gru',x:1300,y:350,w:35,h:45,sx:1200,ex:1480,dr:1,sp:2,hp:1,mhp:1,al:true,cd:100,cdm:100});
-ens.push({tp:'man',x:1900,y:410,w:35,h:45,sx:1900,ex:2040,dr:1,sp:1.5,hp:1,mhp:1,al:true,cd:999,cdm:999});
+ens.push({tp:'gru',x:500,y:370,w:35,h:45,sx:450,ex:630,dr:1,sp:1.2,hp:1,mhp:1,al:true,cd:120,cdm:120});
+ens.push({tp:'gru',x:1300,y:350,w:35,h:45,sx:1200,ex:1480,dr:1,sp:1.2,hp:1,mhp:1,al:true,cd:100,cdm:100});
+ens.push({tp:'man',x:1900,y:410,w:35,h:45,sx:1900,ex:2040,dr:1,sp:0.9,hp:1,mhp:1,al:true,cd:999,cdm:999});
 npcs.push({id:2,x:300,y:530,w:30,h:50,isA:false,rev:false,fled:false,int:false,dlg:{t:'Kolemjdouci',tx:'Cibulka? Ten blazen co vsude vidi agenty? No... kazdy ma pravo na nazor...'}});
 npcs.push({id:3,x:800,y:450,w:30,h:50,isA:true,rev:false,fled:false,int:false,dlg:{t:'Podezrely muz',tx:'Ehm... ja jen... koukam na pamatky... *nervozne se diva*'}});
 npcs.push({id:4,x:1600,y:450,w:30,h:50,isA:true,rev:false,fled:false,int:false,dlg:{t:'Dalsi podezrely',tx:'Nemas tu co delat, starce! Jdi domu a nech nas na pokoji!'}});
@@ -283,10 +283,10 @@ sObj("Odhal 2 agenty (K), seber 3 podpisy, znic 2 vysilace")}
 function lv2(){ // Redakce novin
 lvW=1600;score+=500;
 plats.push({x:0,y:580,w:400,h:20},{x:100,y:480,w:180,h:16},{x:350,y:400,w:200,h:16},{x:600,y:500,w:200,h:16},{x:600,y:380,w:150,h:16},{x:850,y:580,w:350,h:20},{x:900,y:460,w:120,h:16},{x:1050,y:380,w:150,h:16},{x:1250,y:580,w:350,h:20},{x:1300,y:480,w:150,h:16},{x:1100,y:300,w:200,h:16});
-ens.push({tp:'man',x:200,y:430,w:35,h:45,sx:120,ex:260,dr:1,sp:1.5,hp:1,mhp:1,al:true,cd:999,cdm:999});
-ens.push({tp:'man',x:700,y:330,w:35,h:45,sx:610,ex:740,dr:1,sp:2,hp:1,mhp:1,al:true,cd:999,cdm:999});
-ens.push({tp:'gru',x:1050,y:330,w:35,h:45,sx:1050,ex:1190,dr:1,sp:2,hp:1,mhp:1,al:true,cd:80,cdm:80});
-ens.push({tp:'mb',x:1150,y:240,w:45,h:55,sx:1100,ex:1280,dr:1,sp:1,hp:120,mhp:120,al:true,cd:90,cdm:90,ph:1});
+ens.push({tp:'man',x:200,y:430,w:35,h:45,sx:120,ex:260,dr:1,sp:0.9,hp:1,mhp:1,al:true,cd:999,cdm:999});
+ens.push({tp:'man',x:700,y:330,w:35,h:45,sx:610,ex:740,dr:1,sp:1.2,hp:1,mhp:1,al:true,cd:999,cdm:999});
+ens.push({tp:'gru',x:1050,y:330,w:35,h:45,sx:1050,ex:1190,dr:1,sp:1.2,hp:1,mhp:1,al:true,cd:80,cdm:80});
+ens.push({tp:'mb',x:1150,y:240,w:45,h:55,sx:1100,ex:1280,dr:1,sp:0.6,hp:120,mhp:120,al:true,cd:90,cdm:90,ph:1});
 npcs.push({id:6,x:450,y:350,w:30,h:50,isA:false,rev:false,fled:false,int:false,dlg:{t:'Mlady novinar',tx:'Pane Cibulko, ja vim ze to tady neni OK. Ale co mam delat? Mam rodinu...'}});
 npcs.push({id:7,x:950,y:410,w:30,h:50,isA:true,rev:false,fled:false,int:false,dlg:{t:'Sefredaktor',tx:'Cibulka! Vy tu nemate co delat! Nase noviny jsou NEZAVISLE!'}});
 its.push({tp:'press',x:160,y:455,w:30,h:25,col:false},{tp:'press',x:660,y:475,w:30,h:25,col:false});
@@ -301,8 +301,8 @@ lvW=3200;score+=500;
 plats.push({x:0,y:560,w:3200,h:40});
 for(let i=0;i<12;i++)plats.push({x:100+i*260,y:440+Math.sin(i)* 30,w:80,h:16});
 for(let i=0;i<8;i++)plats.push({x:200+i*370,y:340+(i%2)*20,w:70,h:16});
-ens.push({tp:'gru',x:800,y:510,w:35,h:45,sx:700,ex:950,dr:1,sp:2,hp:1,mhp:1,al:true,cd:100,cdm:100});
-ens.push({tp:'gru',x:2200,y:510,w:35,h:45,sx:2100,ex:2400,dr:1,sp:2,hp:1,mhp:1,al:true,cd:100,cdm:100});
+ens.push({tp:'gru',x:800,y:510,w:35,h:45,sx:700,ex:950,dr:1,sp:1.2,hp:1,mhp:1,al:true,cd:100,cdm:100});
+ens.push({tp:'gru',x:2200,y:510,w:35,h:45,sx:2100,ex:2400,dr:1,sp:1.2,hp:1,mhp:1,al:true,cd:100,cdm:100});
 npcs.push({id:8,x:300,y:510,w:30,h:50,isA:false,rev:false,fled:false,int:false,dlg:{t:'Turista',tx:'Oh, Praha je krasna! *fotka* Very beautiful!'}});
 npcs.push({id:9,x:600,y:510,w:30,h:50,isA:true,rev:false,fled:false,int:false,dlg:{t:'Turista s mapou',tx:'Ehm... ano, ja jsem turista... z Moskvy... ehm, chci rici z Mnichova!'}});
 npcs.push({id:10,x:1200,y:510,w:30,h:50,isA:false,rev:false,fled:false,int:false,dlg:{t:'Poulic\u00ed muzikant',tx:'*hraje na kytaru* Hezky den, pane!'}});
@@ -318,10 +318,10 @@ sObj("Odhal 3 skryte agenty na moste pomoci Kyvadla (K)")}
 function lv4(){ // Parlament
 lvW=2000;score+=500;
 plats.push({x:0,y:580,w:500,h:20},{x:150,y:480,w:150,h:16},{x:400,y:400,w:200,h:16},{x:650,y:500,w:150,h:16},{x:700,y:380,w:120,h:16},{x:550,y:300,w:100,h:16},{x:850,y:580,w:400,h:20},{x:900,y:460,w:150,h:16},{x:1100,y:380,w:120,h:16},{x:1300,y:580,w:700,h:20},{x:1400,y:480,w:150,h:16},{x:1600,y:400,w:150,h:16},{x:1350,y:320,w:200,h:16});
-ens.push({tp:'pol',x:200,y:430,w:35,h:45,sx:160,ex:290,dr:1,sp:1.5,hp:1,mhp:1,al:true,cd:999,cdm:999});
-ens.push({tp:'gru',x:750,y:330,w:35,h:45,sx:710,ex:810,dr:1,sp:2,hp:1,mhp:1,al:true,cd:90,cdm:90});
-ens.push({tp:'pol',x:1000,y:410,w:35,h:45,sx:910,ex:1040,dr:1,sp:1.5,hp:1,mhp:1,al:true,cd:999,cdm:999});
-ens.push({tp:'gru',x:1500,y:430,w:35,h:45,sx:1410,ex:1540,dr:1,sp:2,hp:1,mhp:1,al:true,cd:100,cdm:100});
+ens.push({tp:'pol',x:200,y:430,w:35,h:45,sx:160,ex:290,dr:1,sp:0.9,hp:1,mhp:1,al:true,cd:999,cdm:999});
+ens.push({tp:'gru',x:750,y:330,w:35,h:45,sx:710,ex:810,dr:1,sp:1.2,hp:1,mhp:1,al:true,cd:90,cdm:90});
+ens.push({tp:'pol',x:1000,y:410,w:35,h:45,sx:910,ex:1040,dr:1,sp:0.9,hp:1,mhp:1,al:true,cd:999,cdm:999});
+ens.push({tp:'gru',x:1500,y:430,w:35,h:45,sx:1410,ex:1540,dr:1,sp:1.2,hp:1,mhp:1,al:true,cd:100,cdm:100});
 npcs.push({id:15,x:500,y:350,w:30,h:50,isA:false,rev:false,fled:false,int:false,dlg:{t:'Poslanec',tx:'Pane Cibulko, ja s vami SOUHLASIM, ale nesmi se to vedet...'}});
 npcs.push({id:16,x:1150,y:330,w:30,h:50,isA:true,rev:false,fled:false,int:false,dlg:{t:'Ministr',tx:'Cibulka! Vy srite konspirace! Odejdete z budovy IHNED!'}});
 its.push({tp:'doc',x:170,y:452,w:22,h:18,col:false},{tp:'doc',x:570,y:272,w:22,h:18,col:false},{tp:'doc',x:1620,y:372,w:22,h:18,col:false});
@@ -334,10 +334,10 @@ sObj("Najdi 3 dokumenty, znic psychotronicky rusic")}
 function lv5(){ // Tajne podzemi
 lvW=2400;score+=500;
 plats.push({x:0,y:580,w:300,h:20},{x:100,y:500,w:100,h:16},{x:350,y:520,w:150,h:16},{x:550,y:580,w:200,h:20},{x:550,y:440,w:120,h:16},{x:750,y:500,w:100,h:16},{x:900,y:580,w:300,h:20},{x:950,y:460,w:120,h:16},{x:1100,y:380,w:150,h:16},{x:1300,y:580,w:400,h:20},{x:1350,y:480,w:100,h:16},{x:1500,y:400,w:120,h:16},{x:1700,y:500,w:150,h:16},{x:1800,y:580,w:600,h:20},{x:1900,y:460,w:150,h:16},{x:2100,y:380,w:120,h:16});
-ens.push({tp:'gru',x:400,y:470,w:35,h:45,sx:360,ex:490,dr:1,sp:2,hp:1,mhp:1,al:true,cd:80,cdm:80});
-ens.push({tp:'gru',x:1000,y:410,w:35,h:45,sx:960,ex:1060,dr:1,sp:2.5,hp:1,mhp:1,al:true,cd:70,cdm:70});
-ens.push({tp:'man',x:1550,y:350,w:35,h:45,sx:1510,ex:1610,dr:1,sp:2,hp:1,mhp:1,al:true,cd:999,cdm:999});
-ens.push({tp:'gru',x:2150,y:330,w:35,h:45,sx:2110,ex:2210,dr:1,sp:2,hp:1,mhp:1,al:true,cd:90,cdm:90});
+ens.push({tp:'gru',x:400,y:470,w:35,h:45,sx:360,ex:490,dr:1,sp:1.2,hp:1,mhp:1,al:true,cd:80,cdm:80});
+ens.push({tp:'gru',x:1000,y:410,w:35,h:45,sx:960,ex:1060,dr:1,sp:0.9,hp:1,mhp:1,al:true,cd:70,cdm:70});
+ens.push({tp:'man',x:1550,y:350,w:35,h:45,sx:1510,ex:1610,dr:1,sp:1.2,hp:1,mhp:1,al:true,cd:999,cdm:999});
+ens.push({tp:'gru',x:2150,y:330,w:35,h:45,sx:2110,ex:2210,dr:1,sp:1.2,hp:1,mhp:1,al:true,cd:90,cdm:90});
 hzs.push({x:300,y:570,w:50,h:10,dm:.3},{x:800,y:570,w:80,h:10,dm:.3},{x:1250,y:570,w:50,h:10,dm:.3});
 npcs.push({id:17,x:600,y:390,w:30,h:50,isA:true,rev:false,fled:false,int:false,dlg:{t:'Laborant',tx:'Vy tu nemate co delat! Toto je TAJNY vyzkum! Pro vase dobro ODEJDETE!'}});
 npcs.push({id:18,x:1400,y:430,w:30,h:50,isA:true,rev:false,fled:false,int:false,dlg:{t:'Vedec',tx:'Psychotronika je budoucnost! A vy, Cibulko, jste jen paranoik!'}});
@@ -351,12 +351,12 @@ sObj("Najdi 2 dokumenty, odhal 2 agenty (K)")}
 function lv6(){ // Centrala GRU - Final
 lvW=1600;score+=500;
 plats.push({x:0,y:580,w:400,h:20},{x:100,y:480,w:150,h:16},{x:350,y:400,w:200,h:16},{x:600,y:500,w:200,h:16},{x:600,y:380,w:120,h:16},{x:800,y:300,w:150,h:16},{x:1000,y:580,w:600,h:20},{x:1050,y:480,w:120,h:16},{x:1200,y:400,w:150,h:16},{x:1100,y:300,w:200,h:16},{x:400,y:280,w:100,h:16});
-ens.push({tp:'gru',x:200,y:430,w:35,h:45,sx:110,ex:240,dr:1,sp:2.5,hp:1,mhp:1,al:true,cd:70,cdm:70});
-ens.push({tp:'gru',x:650,y:330,w:35,h:45,sx:610,ex:710,dr:1,sp:2.5,hp:1,mhp:1,al:true,cd:60,cdm:60});
-ens.push({tp:'gru',x:1100,y:430,w:35,h:45,sx:1060,ex:1160,dr:1,sp:3,hp:1,mhp:1,al:true,cd:70,cdm:70});
-ens.push({tp:'man',x:1250,y:350,w:35,h:45,sx:1210,ex:1340,dr:1,sp:2,hp:1,mhp:1,al:true,cd:999,cdm:999});
+ens.push({tp:'gru',x:200,y:430,w:35,h:45,sx:110,ex:240,dr:1,sp:0.9,hp:1,mhp:1,al:true,cd:70,cdm:70});
+ens.push({tp:'gru',x:650,y:330,w:35,h:45,sx:610,ex:710,dr:1,sp:0.9,hp:1,mhp:1,al:true,cd:60,cdm:60});
+ens.push({tp:'gru',x:1100,y:430,w:35,h:45,sx:1060,ex:1160,dr:1,sp:1.8,hp:1,mhp:1,al:true,cd:70,cdm:70});
+ens.push({tp:'man',x:1250,y:350,w:35,h:45,sx:1210,ex:1340,dr:1,sp:1.2,hp:1,mhp:1,al:true,cd:999,cdm:999});
 // BOSS
-ens.push({tp:'boss',x:1150,y:240,w:50,h:55,sx:1100,ex:1290,dr:1,sp:1.5,hp:300,mhp:300,al:true,cd:80,cdm:80,ph:1});
+ens.push({tp:'boss',x:1150,y:240,w:50,h:55,sx:1100,ex:1290,dr:1,sp:0.9,hp:300,mhp:300,al:true,cd:80,cdm:80,ph:1});
 its.push({tp:'doc',x:370,y:372,w:22,h:18,col:false},{tp:'hp',x:630,y:352,w:20,h:20,col:false},{tp:'hp',x:1070,y:452,w:20,h:20,col:false});
 exs.push({x:1540,y:510,w:50,h:70});
 dlg("CENTRALA GRU","CENTRALA GRU v Praze! Tady to SKONCI! PRAVDA ZVITEZI! HLAVNI REZIDENT GRU je tady! Ma 300 bodu zdravi - SKAKEJ mu na hlavu! VOLTE PRAVY BLOK! BOJ NIKDY NEKONCI!!!");
