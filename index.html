@@ -1,426 +1,431 @@
 <!DOCTYPE html>
 <html lang="cs">
 <head>
-    <meta charset="UTF-8">
-    <title>Pravý Blok: Parlamentní Střet</title>
-    <style>
-        body {
-            background-color: #1a1a1a;
-            color: #fff;
-            font-family: 'Courier New', Courier, monospace;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
-            margin: 0;
-            padding: 1rem;
-            overflow: hidden; /* Zabrání rolování stránky */
-        }
-        h1, h2 {
-            color: #ffcc00;
-            text-shadow: 2px 2px #ff0000;
-            text-transform: uppercase;
-        }
-        canvas {
-            border: 5px solid #ff0000;
-            background-color: #000;
-            /* Různá pozadí pro levely se budou nastavovat v JS */
-        }
-        #herni-info {
-            display: flex;
-            justify-content: space-between;
-            width: 800px;
-            padding: 10px;
-            background: #222;
-            border: 3px solid #ff0000;
-            margin-top: 10px;
-        }
-        #herni-info div { padding: 5px 10px; }
-        #ukoly { border-left: 2px solid #ffcc00; }
-    </style>
+<meta charset="UTF-8">
+<title>Cibulka: Boj Za Pravdu!</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0a;color:#fff;font-family:'Courier New',monospace;display:flex;justify-content:center;align-items:center;flex-direction:column;min-height:100vh;overflow:hidden}
+h1{color:#ffcc00;text-shadow:2px 2px #ff0000;text-transform:uppercase;font-size:1.3rem;margin:6px 0}
+canvas{border:4px solid #ff0000;background:#000;display:block}
+#hud{display:flex;justify-content:space-between;width:800px;padding:5px 10px;background:#111;border:2px solid #ff0000;border-top:none;font-size:12px}
+#hud div{padding:2px 6px}
+.lives{color:#ff4444}.hbar{color:#00ff00}.sc{color:#ffcc00}
+.obj{color:#aaa;border-left:2px solid #ffcc00;padding-left:10px;max-width:340px;font-size:11px}
+#ctr{color:#666;font-size:11px;margin-top:4px}
+</style>
 </head>
 <body>
+<h1>Cibulka: Boj Za Pravdu!</h1>
+<canvas id="gc" width="800" height="600"></canvas>
+<div id="hud">
+<div class="lives" id="hl">&#9829;&#9829;&#9829;</div>
+<div class="hbar" id="hh">ZDRAVI: 100%</div>
+<div class="sc" id="hs">SKORE: 0</div>
+<div class="obj" id="ho">-</div>
+</div>
+<div id="ctr">SIPKY: pohyb | MEZERN&Iacute;K: skok | E: interakce | K: Siderick&eacute; Kyvadlo</div>
+<script>
+"use strict";
+const C=document.getElementById('gc'),X=C.getContext('2d'),W=800,H=600;
 
-    <h1>Volte Pravý Blok: Boj Nikdy nekončí!</h1>
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
-    <div id="herni-info">
-        <div id="zdravi">ZDRAVÍ: 100%</div>
-        <div id="skore">SKÓRE PRAVDY: 0</div>
-        <div id="ukoly">
-            <strong>AKTUÁLNÍ ÚKOL:</strong>
-            <span id="text-ukolu"></span>
-        </div>
-    </div>
-    <h2>POHYB: ŠIPKY | INTERAKCE: E | SKOK: MEZERNÍK</h2>
+// === INPUT ===
+const K={},JP={};
+window.addEventListener('keydown',e=>{if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();if(!K[e.code])JP[e.code]=true;K[e.code]=true});
+window.addEventListener('keyup',e=>{K[e.code]=false});
+function ck(c){if(JP[c]){JP[c]=false;return true}return false}
 
-    <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
+// === GAME STATE ===
+let st='menu',lv=0,lives=3,score=0,fr=0;
+let P={},cam={x:0},plats=[],ens=[],npcs=[],its=[],exs=[],hzs=[],projs=[],parts=[];
+let obj={t:'',d:false},hasKyv=false,dq=[],cd=null,kvs=null,lvW=W,dtmr=0,letmr=0;
+const GR=0.6,PS=4,JV=-11.5;
 
-        // --- HERNÍ STAV A PROMENNE ---
-        let stavHry = 'start'; // 'start', 'hraje', 'vyhra', 'prohra'
-        let aktualniUroven = 1;
-        let hrac = {};
-        let klavesy = {};
-        let platformy = [];
-        let nepratele = [];
-        let sberatelne = [];
-        let npcs = [];
-        let vychody = [];
-        let psychotronickyRusic = {};
-        let skore = 0;
-        let aktualniUkol = {};
-        let dialog = null;
+// === HELPERS ===
+function col(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
+function sp(x,y,c,n){for(let i=0;i<n;i++)parts.push({x,y,vx:(Math.random()-.5)*6,vy:(Math.random()-1)*4,l:30+Math.random()*30,c,s:2+Math.random()*3})}
+function updParts(){for(let i=parts.length-1;i>=0;i--){let p=parts[i];p.x+=p.vx;p.y+=p.vy;p.vy+=.1;p.l--;if(p.l<=0)parts.splice(i,1)}}
 
-        const gravitace = 0.5;
+// === DIALOG ===
+function dlg(t,tx,cb){dq.push({t,tx,cb:cb||null});if(!cd)ndlg()}
+function ndlg(){if(dq.length>0){cd=dq.shift();st='dialog'}else{cd=null;if(st==='dialog')st='playing'}}
+function cdlg(){let cb=cd?cd.cb:null;cd=null;if(cb)cb();ndlg()}
 
-        const skiny = {
-            hrac: '#00ff00',
-            platforma: '#8B4513',
-            platformaParlament: '#4a0000', // Mahagonové dřevo v parlamentu
-            platformaLaborator: '#cccccc', // Sterilní kov
-            agentGRU: '#ff0000',
-            medialniManipulator: '#800080',
-            zkorumpovanyPolitik: '#FFA500', // Oranžová vesta, symbol zrady
-            strelaLzi: '#ff4d4d',
-            cistaPravda: '#ffffff',
-            hlasProReferendum: '#ffff00',
-            dulezityDokument: '#00ffff', // Modré desky
-            cestnyObcan: '#0000ff',
-            vysilacLzi: '#555555',
-            bossStavaKGB: '#333333', // Temný oblek miliardáře
-            vchod: '#b38f00'
-        };
+// === KYVADLO ===
+function tryKyv(){
+if(!hasKyv||kvs)return;
+let near=null,md=100;
+npcs.forEach(n=>{if(n.rev||n.fled)return;let d=Math.abs(P.x+P.w/2-n.x-n.w/2)+Math.abs(P.y+P.h/2-n.y-n.h/2);if(d<md){md=d;near=n}});
+if(near){kvs={tgt:near,tmr:120,res:near.isA};st='kyvadlo'}
+else dlg("KYVADLO","Nikdo podezrely neni nablizku! Pribliz se k osobe a pak pouzij KYVADLO!")
+}
+function updKyv(){
+if(!kvs)return;kvs.tmr--;
+if(kvs.tmr<=0){
+let n=kvs.tgt;n.rev=true;
+if(n.isA){score+=200;sp(n.x+n.w/2,n.y,'#ff0000',15);n.fled=true;
+const ls=["AGENT!!! Kyvadlo NIKDY NELZE! To je DUKAZ!","AHA!!! AGENT GRU! Vedel jsem to! KYVADLO je NEOMYLNE!!!","ODHALEN! Dalsi ZRADCE! Kyvadlo je GENIALNI NASTROJ!","TAK TY JSI AGENT?! Me kyvadlo te PROKOUKLO!","AGENT KGB!!! Ja to VEDEL! SIDERICKE KYVADLO nikdy NESELZE!!!"];
+dlg("AGENT ODHALEN!!!",ls[Math.floor(Math.random()*ls.length)])}
+else{const ls=["Hmm, cisty... ALE TO NEZNAMENA, ZE NEBUDE NAVERBOVAN!","Tentokrat cisty. Ale AGENTI jsou VSUDE! Nesmim POLEVIT!","Kyvadlo rika cisty. Dobre. Ale at si da POZOR!","Cisty... TENTOKRAT. Ale situace se muze KDYKOLI zmenit!"];
+dlg("CISTY",ls[Math.floor(Math.random()*ls.length)])}
+kvs=null;st='dialog';chkObj()}}
 
-        const pozadi = {
-            ulice: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cg fill-rule='evenodd'%3E%3Cg fill='%232a0000' fill-opacity='0.4'%3E%3Cpath opacity='.5' d='M96 95h4v1h-4v-1zm-7 0h1v1h-1v-1zm-7 0h1v1h-1v-1zm-7 0h1v1h-1v-1zm-7 0h1v1h-1v-1zm-7 0h1v1h-1v-1zm-7 0h1v1h-1v-1zm-7 0h1v1h-1v-1zm-7 0h1v1h-1v-1zm-7 0h1v1h-1v-1zm-7 0h1v1h-1v-1zm-7 0h1v1h-1v-1zm-7 0h1v1h-1v-1z'/%3E%3Cpath d='M6 95h4v1H6v-1zm7 0h1v1H13v-1zm7 0h1v1h-1v-1zm7 0h1v1h-1v-1zm7 0h1v1h-1v-1zm7 0h1v1h-1v-1zm7 0h1v1h-1v-1zm7 0h1v1h-1v-1zm7 0h1v1h-1v-1zm7 0h1v1h-1v-1zm7 0h1v1h-1v-1zm7 0h1v1h-1v-1zm7 0h1v1h-1v-1z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
-            parlament: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 80' width='80' height='80'%3E%3Crect fill='%233a0505' width='80' height='80'/%3E%3Cg fill-opacity='0.2' fill='%23ffbf00'%3E%3Crect x='0' y='0' width='10' height='10'/%3E%3Crect x='20' y='0' width='10' height='10'/%3E%3Crect x='40' y='0' width='10' height='10'/%3E%3Crect x='60' y='0' width='10' height='10'/%3E%3Crect x='10' y='10' width='10' height='10'/%3E%3Crect x='30' y='10' width='10' height='10'/%3E%3Crect x='50' y='10' width='10' height='10'/%3E%3Crect x='70' y='10' width='10' height='10'/%3E%3Crect x='0' y='20' width='10' height='10'/%3E%3Crect x='20' y='20' width='10' height='10'/%3E%3Crect x='40' y='20' width='10' height='10'/%3E%3Crect x='60' y='20' width='10' height='10'/%3E%3Crect x='10' y='30' width='10' height='10'/%3E%3Crect x='30' y='30' width='10' height='10'/%3E%3Crect x='50' y='30' width='10' height='10'/%3E%3Crect x='70' y='30' width='10' height='10'/%3E%3Crect x='0' y='40' width='10' height='10'/%3E%3Crect x='20' y='40' width='10' height='10'/%3E%3Crect x='40' y='40' width='10' height='10'/%3E%3Crect x='60' y='40' width='10' height='10'/%3E%3Crect x='10' y='50' width='10' height='10'/%3E%3Crect x='30' y='50' width='10' height='10'/%3E%3Crect x='50' y='50' width='10' height='10'/%3E%3Crect x='70' y='50' width='10' height='10'/%3E%3Crect x='0' y='60' width='10' height='10'/%3E%3Crect x='20' y='60' width='10' height='10'/%3E%3Crect x='40' y='60' width='10' height='10'/%3E%3Crect x='60' y='60' width='10' height='10'/%3E%3Crect x='10' y='70' width='10' height='10'/%3E%3Crect x='30' y='70' width='10' height='10'/%3E%3Crect x='50' y='70' width='10' height='10'/%3E%3Crect x='70' y='70' width='10' height='10'/%3E%3C/g%3E%3C/svg%3E\")",
-            diagHuman: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Cg fill-rule='evenodd'%3E%3Cg fill='%23ff0000' fill-opacity='0.4'%3E%3Cpath d='M0 0h20v.5H0zM0 1h20v.5H0zM0 2h20v.5H0zM0 3h20v.5H0zM0 4h20v.5H0zM0 5h20v.5H0zM0 6h20v.5H0zM0 7h20v.5H0zM0 8h20v.5H0zM0 9h20v.5H0zM0 10h20v.5H0zM0 11h20v.5H0zM0 12h20v.5H0zM0 13h20v.5H0zM0 14h20v.5H0zM0 15h20v.5H0zM0 16h20v.5H0zM0 17h20v.5H0zM0 18h20v.5H0zM0 19h20v.5H0z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")"
-        }
+// === OBJECTIVE ===
+function sObj(t){obj={t,d:false};document.getElementById('ho').textContent=t}
+function chkObj(){
+if(lv===0){
+let ki=its.filter(i=>i.tp==='kyv'&&i.col).length;
+let ni=npcs.filter(n=>n.rev).length;
+if(ki>=1&&ni>=1&&!obj.d){obj.d=true;dlg("VYBORNE!","Zvladl jsi zaklady! Ted VPERED do ulic Prahy! AGENTI GRU se rozlezli VSUDE!")}
+}else if(lv===1){
+let ag=npcs.filter(n=>n.isA&&n.rev).length;
+let si=its.filter(i=>i.tp==='sig'&&i.col).length;
+let ls=its.filter(i=>i.tp==='loud'&&i.col).length;
+if(ag>=2&&si>=3&&ls>=2&&!obj.d){obj.d=true;dlg("ULICE PROCISTENY!","Skvela prace! AGENTI ODHALENI, hlasy SEBR\u00c1NY, vysilace ZNICENY! Dal do REDAKCE!")}
+}else if(lv===2){
+let pr=its.filter(i=>i.tp==='press'&&i.col).length;
+let dc=its.filter(i=>i.tp==='doc'&&i.col).length;
+let mb=ens.filter(e=>e.tp==='mb'&&!e.al).length;
+if(pr>=2&&dc>=2&&mb>=1&&!obj.d){obj.d=true;dlg("REDAKCE VYCIISTENA!","DEZINFORMACNI CENTRUM zniceno! Dukazy zajisteny! Pokracujeme na KARLUV MOST!")}
+}else if(lv===3){
+let ag=npcs.filter(n=>n.isA&&n.rev).length;
+if(ag>=3&&!obj.d){obj.d=true;dlg("MOST JE CISTY!","Vsichni TRI AGENTI na moste ODHALENI! KYVADLO je NEOMYLNE! Pokracujeme do PARLAMENTU!")}
+}else if(lv===4){
+let dc=its.filter(i=>i.tp==='doc'&&i.col).length;
+let jm=its.filter(i=>i.tp==='jam'&&i.col).length;
+if(dc>=3&&jm>=1&&!obj.d){obj.d=true;dlg("PARLAMENT PROCISTEN!","Dokumenty o VLASTIZRADE zajisteny! Psychotronicky rusic ZNICEN! Do PODZEMI!")}
+}else if(lv===5){
+let dc=its.filter(i=>i.tp==='doc'&&i.col).length;
+let ag=npcs.filter(n=>n.isA&&n.rev).length;
+if(dc>=2&&ag>=2&&!obj.d){obj.d=true;dlg("PODZEMI PROHLEDANO!","Tajne dokumenty nalezeny! Agenti ODHALENI! Nyni do CENTRALY GRU!")}
+}else if(lv===6){
+let boss=ens.filter(e=>e.tp==='boss'&&!e.al).length;
+if(boss>=1&&!obj.d){obj.d=true;st='victory';
+dlg("VITEZSTVI!!!","AGENTI GRU A KGB JSOU ODHALENI!!! Cely SEZNAM je na www.cibulka.net! VOLTE PRAVY BLOK! Prectete si knihu 'Jak ziskavat informace z jemnohmotneho sveta' od Alexandra Svijase! BOJ NIKDY NEKONCI!!!")}
+}}
 
-        function resetHrace() {
-            hrac = { x: 50, y: 500, width: 40, height: 60, rychlost: 5, rychlostY: 0, skace: true, zdravi: 100 };
-        }
+// === PLAYER ===
+function mkP(x,y){return{x,y,w:30,h:50,vx:0,vy:0,jp:true,hp:100,inv:0,fr:true}}
+function updP(){
+if(P.inv>0)P.inv--;
+if(K['ArrowLeft']){P.vx=-PS;P.fr=false}
+else if(K['ArrowRight']){P.vx=PS;P.fr=true}
+else P.vx=0;
+if(ck('Space')&&!P.jp){P.vy=JV;P.jp=true}
+P.vy+=GR;P.x+=P.vx;P.y+=P.vy;
+P.jp=true;
+plats.forEach(p=>{if(col(P,p)){
+if(P.vy>0&&P.y+P.h-P.vy<=p.y+4){P.y=p.y-P.h;P.vy=0;P.jp=false}
+else if(P.vy<0&&P.y-P.vy>=p.y+p.h-4){P.y=p.y+p.h;P.vy=1}
+else if(P.vx>0&&P.x+P.w-P.vx<=p.x){P.x=p.x-P.w}
+else if(P.vx<0&&P.x-P.vx>=p.x+p.w){P.x=p.x+p.w}
+}});
+if(P.x<0)P.x=0;if(P.x+P.w>lvW)P.x=lvW-P.w;
+if(P.y>H+100)hurt(999);
+if(ck('KeyE')){if(cd){cdlg()}else tryInt()}
+if(ck('KeyK'))tryKyv();
+}
+function hurt(d){if(P.inv>0)return;P.hp-=d;P.inv=30;sp(P.x+P.w/2,P.y+P.h/2,'#ff0000',5);if(P.hp<=0){P.hp=0;st='dead';dtmr=90}}
+function tryInt(){
+npcs.forEach(n=>{if(n.fled||n.rev)return;
+let dx=Math.abs(P.x+P.w/2-n.x-n.w/2),dy=Math.abs(P.y+P.h/2-n.y-n.h/2);
+if(dx<80&&dy<60&&n.dlg&&!n.int){n.int=true;dlg(n.dlg.t,n.dlg.tx,n.dlg.cb)}})
+}
 
-        function nastavitUroven(cisloUrovne) {
-            aktualniUroven = cisloUrovne;
-            // Resetovat pole pred nactenim nove urovne
-            platformy = []; nepratele = []; sberatelne = []; npcs = []; vychody = []; psychotronickyRusic = {};
-            dialog = null;
-            resetHrace();
+// === ENEMIES ===
+function updEn(){
+ens.forEach(e=>{if(!e.al)return;
+e.x+=e.dr*e.sp;if(e.x>e.ex){e.x=e.ex;e.dr=-1}if(e.x<e.sx){e.x=e.sx;e.dr=1}
+if(e.tp==='gru'||e.tp==='boss'||e.tp==='mb'){
+e.cd--;if(e.cd<=0){let dx=P.x-e.x;let sd=dx>0?1:-1;
+projs.push({x:e.x+e.w/2,y:e.y+e.h/2-5,vx:sd*(e.tp==='boss'?5:4),vy:0,w:10,h:8,en:true,dm:e.tp==='boss'?12:8});
+e.cd=e.cdm}}
+if(e.tp==='boss'&&e.ph){let r=e.hp/e.mhp;if(r<.33&&e.ph!==3){e.ph=3;e.sp=4;e.cdm=40}else if(r<.66&&e.ph<2){e.ph=2;e.sp=3;e.cdm=60}}
+if(col(P,e)){if(P.vy>0&&P.y+P.h-P.vy<=e.y+8){P.vy=-8;
+if(e.tp==='boss'){e.hp-=25;score+=50;sp(e.x+e.w/2,e.y,'#ffcc00',10);if(e.hp<=0){e.al=false;score+=500;sp(e.x+e.w/2,e.y+e.h/2,'#ff0000',30);chkObj()}}
+else if(e.tp==='mb'){e.hp-=30;score+=30;sp(e.x+e.w/2,e.y,'#ffcc00',8);if(e.hp<=0){e.al=false;score+=300;sp(e.x+e.w/2,e.y+e.h/2,'#ff0000',20);chkObj()}}
+else{e.al=false;score+=100;P.vy=-6;sp(e.x+e.w/2,e.y+e.h/2,'#ff4444',10);chkObj()}}
+else hurt(e.tp==='boss'?15:8)}});
+for(let i=projs.length-1;i>=0;i--){let p=projs[i];p.x+=p.vx;p.y+=p.vy;
+if(p.x<cam.x-50||p.x>cam.x+W+50){projs.splice(i,1);continue}
+if(p.en&&col(P,p)){hurt(p.dm);projs.splice(i,1)}}
+ens=ens.filter(e=>e.al)}
 
-            switch (cisloUrovne) {
-                case 1: inicializovatUroven1(); break;
-                case 2: inicializovatUroven2_Parlament(); break;
-                case 3: inicializovatUroven3_DiagHuman(); break;
-            }
-        }
+// === ITEMS ===
+function updIt(){
+its.forEach(it=>{if(it.col)return;
+if(it.tp==='loud'||it.tp==='press'||it.tp==='jam'){
+if(col(P,it)&&P.vy>0&&P.y+P.h-P.vy<=it.y+4){it.col=true;P.vy=-8;score+=(it.tp==='jam'?500:100);
+sp(it.x+it.w/2,it.y,it.tp==='jam'?'#cc00cc':'#888',12);
+if(it.tp==='jam')dlg("USPECH!","Znicil jsi PSYCHOTRONICKY RUSIC GRU! Mysl pritomnych je OSVOBOZENA!");
+chkObj()}
+if(it.tp==='jam'&&!it.col){let d=Math.abs(P.x+P.w/2-it.x-it.w/2);if(d<300)hurt(.06)}
+return}
+if(col(P,it)){it.col=true;
+if(it.tp==='hp'){P.hp=Math.min(100,P.hp+25);sp(it.x,it.y,'#00ff00',8)}
+else if(it.tp==='kyv'){hasKyv=true;sp(it.x,it.y,'#ffcc00',15);
+dlg("SIDERICKE KYVADLO!","NASEL jsem sve SIDERICKE KYVADLO! Tento nastroj mi umoznuje spojit se s JEMNOHMOTNYM SVETEM a ODHALIT AGENTY! Stiskni K pobliz podezrele osoby! Prectete si 'Jak ziskavat informace z jemnohmotneho sveta' od Alexandra Svijase!")}
+else{score+=50;sp(it.x,it.y,'#ffff00',6)}
+chkObj()}});
+hzs.forEach(hz=>{if(col(P,hz))hurt(hz.dm)});
+exs.forEach(ex=>{if(col(P,ex)&&obj.d){st='levelEnd';letmr=60}})}
 
-        function inicializovatUroven1() {
-            canvas.style.backgroundImage = pozadi.ulice;
-            aktualizovatUkol(0, "Najdi čestného občana a zeptej se ho na cestu.");
+// === CAMERA ===
+function updCam(){let t=P.x-W/2+P.w/2;cam.x+=(t-cam.x)*.1;if(cam.x<0)cam.x=0;if(cam.x>lvW-W)cam.x=lvW-W}
 
-            platformy = [ { x: 0, y: 580, width: canvas.width, height: 20, typ: 'platforma' }, { x: 150, y: 480, width: 200, height: 20, typ: 'platforma' }, { x: 400, y: 400, width: 150, height: 20, typ: 'platforma' }, { x: 600, y: 300, width: 180, height: 20, typ: 'platforma' }, { x: 450, y: 200, width: 100, height: 20, typ: 'platforma' }, { x: 200, y: 150, width: 150, height: 20, typ: 'platforma' } ];
-            nepratele = [ { id: 1, typ: 'agentGRU', x: 450, y: 350, width: 40, height: 50, startX: 400, endX: 530, smer: 1, strely: [], cooldown: 120 }, { id: 2, typ: 'medialniManipulator', x: 200, y: 100, width: 40, height: 50, startX: 200, endX: 330, smer: 1 } ];
-            sberatelne = [ { typ: 'hlasProReferendum', x: 180, y: 450, width: 20, height: 20, sebrano: false }, { typ: 'hlasProReferendum', x: 480, y: 370, width: 20, height: 20, sebrano: false }, { typ: 'hlasProReferendum', x: 620, y: 270, width: 20, height: 20, sebrano: false }, { typ: 'cistaPravda', x: 250, y: 120, width: 25, height: 25, sebrano: false } ];
-            npcs = [ { id: 1, typ: 'cestnyObcan', x: 700, y: 520, width: 40, height: 60, dialogy: [ { ukolId: 0, text: "Vítejte! Dnešní média a politici jsou nástroje KGB a GRU! Musíme zničit vysílače lží, které otravují mysl našich lidí! Jsou na nejvyšších místech této zóny." }, { ukolId: 1, text: "Výborně! Nyní musíme shromáždit dostatek hlasů pro referendum! Najděte 3 podpisové archy." }, { ukolId: 2, text: "Skvělá práce! Teď se musíte dostat do 'Prohnilého parlamentu' a předložit naši vůli. Brána je na konci zóny." }, { ukolId: 3, text: "Hodně štěstí v parlamentu! Věřte sám sobě, ne jim!" }, ] } ];
-            platformy.push({ id: 'vysilac1', typ: 'vysilacLzi', x: 750, y: 260, width: 30, height: 40, zniceno: false });
-            platformy.push({ id: 'vysilac2', typ: 'vysilacLzi', x: 490, y: 160, width: 30, height: 40, zniceno: false });
-            // Přidán viditelný vchod do další úrovně
-            vychody.push({ x: canvas.width - 60, y: 580 - 80, width: 50, height: 80, typ: 'vchod', cil: 2 });
-        }
+// === RENDER ===
+function render(){
+X.clearRect(0,0,W,H);let cx=Math.floor(cam.x);
+// BG
+let bg=['#1a1008','#121225','#0f1a0f','#15151a','#1a0505','#0a0a15','#0f0808'];
+X.fillStyle=bg[lv]||'#111';X.fillRect(0,0,W,H);
+X.globalAlpha=.12;X.fillStyle='#fff';
+for(let i=0;i<15;i++){let bx=((i*137+lv*50)%(lvW+200))-cx*.3,by=(i*73+lv*30)%H;X.fillRect(bx,by,2,2)}
+X.globalAlpha=1;
+if(lv===3){X.fillStyle='#0a2040';X.fillRect(0,H-50,W,50);X.fillStyle='#0e3060';for(let i=0;i<20;i++){let wx=(i*50+fr*.5)%(W+100)-50;X.fillRect(wx,H-30+Math.sin(fr*.03+i)*5,40,3)}}
+X.save();X.translate(-cx,0);
+// Plats
+let pc=['#6b4226','#555','#3a3a3a','#8a7a5a','#4a0000','#2a2a2a','#1a1a1a'];
+plats.forEach(p=>{X.fillStyle=pc[lv]||'#8B4513';X.fillRect(p.x,p.y,p.w,p.h);X.fillStyle='rgba(255,255,255,.1)';X.fillRect(p.x,p.y,p.w,2)});
+// Hazards
+hzs.forEach(hz=>{X.fillStyle='#ff3333';X.globalAlpha=.6+Math.sin(fr*.1)*.2;X.fillRect(hz.x,hz.y,hz.w,hz.h);X.globalAlpha=1});
+// Items
+its.forEach(it=>{if(it.col)return;
+if(it.tp==='kyv'){X.fillStyle='#ffcc00';let b=Math.sin(fr*.08)*4;X.fillRect(it.x,it.y+b,it.w,it.h);X.fillStyle='rgba(255,204,0,.3)';X.fillRect(it.x-4,it.y+b-4,it.w+8,it.h+8)}
+else if(it.tp==='loud'||it.tp==='press'){X.fillStyle='#666';X.fillRect(it.x,it.y,it.w,it.h);X.fillStyle='#f00';X.fillRect(it.x+2,it.y+2,6,6)}
+else if(it.tp==='jam'){X.fillStyle='#cc00cc';X.globalAlpha=.5+Math.abs(Math.sin(fr*.05))*.5;X.fillRect(it.x,it.y,it.w,it.h);X.globalAlpha=1}
+else if(it.tp==='doc'){X.fillStyle='#00cccc';X.fillRect(it.x,it.y,it.w,it.h)}
+else if(it.tp==='hp'){X.fillStyle='#fff';X.fillRect(it.x,it.y,it.w,it.h);X.fillStyle='#f00';X.font='14px Courier New';X.fillText('+',it.x+4,it.y+14)}
+else{X.fillStyle='#ffff00';let b=Math.sin(fr*.06+it.x)*3;X.fillRect(it.x,it.y+b,it.w,it.h)}});
+// Exits
+exs.forEach(ex=>{X.fillStyle=obj.d?'#00cc00':'#b38f00';X.globalAlpha=obj.d?.6+Math.sin(fr*.08)*.3:.4;X.fillRect(ex.x,ex.y,ex.w,ex.h);X.globalAlpha=1;X.fillStyle='#000';X.font='bold 11px Courier New';X.textAlign='center';X.fillText(obj.d?'DALE':'zamceno',ex.x+ex.w/2,ex.y+ex.h/2+4);X.textAlign='left'});
+// NPCs
+npcs.forEach(n=>{if(n.fled)return;X.fillStyle=n.rev?(n.isA?'#cc0000':'#00cc00'):'#3366cc';X.fillRect(n.x,n.y,n.w,n.h);
+if(!n.rev&&!n.int){X.fillStyle='#ff0';X.font='18px Courier New';X.textAlign='center';X.fillText('?',n.x+n.w/2,n.y-8);X.textAlign='left'}
+if(n.rev&&!n.isA){X.fillStyle='#0f0';X.font='14px Courier New';X.textAlign='center';X.fillText('\u2713',n.x+n.w/2,n.y-6);X.textAlign='left'}});
+// Enemies
+ens.forEach(e=>{if(!e.al)return;let ec={'gru':'#cc0000','man':'#7700aa','pol':'#cc8800','boss':'#440000','mb':'#883300'};
+X.fillStyle=ec[e.tp]||'#cc0000';
+if(e.tp==='boss'||e.tp==='mb'){X.globalAlpha=.8;X.fillRect(e.x,e.y,e.w,e.h);X.globalAlpha=1;X.fillStyle='#333';X.fillRect(e.x-5,e.y-10,e.w+10,6);X.fillStyle='#f00';X.fillRect(e.x-5,e.y-10,(e.w+10)*(e.hp/e.mhp),6)}
+else X.fillRect(e.x,e.y,e.w,e.h)});
+// Projectiles
+projs.forEach(p=>{X.fillStyle='#ff4444';X.fillRect(p.x,p.y,p.w,p.h)});
+// Player
+if(st!=='dead'||fr%8<4){X.fillStyle='#00cc00';if(P.inv>0&&fr%6<3)X.globalAlpha=.4;X.fillRect(P.x,P.y,P.w,P.h);X.globalAlpha=1;
+X.fillStyle='#000';let ex=P.fr?P.x+18:P.x+6;X.fillRect(ex,P.y+10,5,5);
+if(hasKyv){X.fillStyle='#ffcc00';X.fillRect(P.x+P.w/2-3,P.y-8,6,6)}}
+// Particles
+parts.forEach(p=>{X.fillStyle=p.c;X.globalAlpha=p.l/60;X.fillRect(p.x,p.y,p.s,p.s)});X.globalAlpha=1;
+X.restore();
+if(cd)renderDlg();if(kvs)renderKyv()}
 
-        function inicializovatUroven2_Parlament() {
-            canvas.style.backgroundImage = pozadi.parlament;
-            skore += 1000; // Bonus za postup
-            aktualizovatUkol(4, "Odhalte korupci! Najděte 3 dokumenty a zničte skrytý psychotronický rušič GRU!");
+function renderDlg(){
+X.fillStyle='rgba(0,0,0,.85)';X.fillRect(60,H/2-110,W-120,220);X.strokeStyle='#ffcc00';X.lineWidth=2;X.strokeRect(60,H/2-110,W-120,220);
+X.fillStyle='#ffcc00';X.font='bold 16px Courier New';X.textAlign='center';X.fillText(cd.t,W/2,H/2-80);
+X.fillStyle='#fff';X.font='13px Courier New';wt(cd.tx,W/2,H/2-52,W-180,17);
+X.fillStyle='#888';X.font='11px Courier New';X.fillText('[ E = pokracovat ]',W/2,H/2+95);X.textAlign='left'}
 
-            // Definice psychotronického rušiče
-            psychotronickyRusic = { x: 385, y: 195, width: 30, height: 25, aktivni: true, typ: 'rusic' };
+function renderKyv(){
+X.fillStyle='rgba(0,0,0,.7)';X.fillRect(W/2-100,50,200,200);X.strokeStyle='#ffcc00';X.lineWidth=2;X.strokeRect(W/2-100,50,200,200);
+X.fillStyle='#ffcc00';X.font='bold 13px Courier New';X.textAlign='center';X.fillText('SIDERICKE KYVADLO',W/2,72);
+let pr=1-(kvs.tmr/120),px=W/2,py=100,an;
+if(pr<.7)an=Math.sin(pr*20)*(1-pr)*.5;else an=kvs.res?-.4:.4;
+let bx=px+Math.sin(an)*80,by=py+Math.cos(an)*80;
+X.strokeStyle='#ffcc00';X.lineWidth=2;X.beginPath();X.moveTo(px,py);X.lineTo(bx,by);X.stroke();
+let bc=pr<.7?'#ffcc00':(kvs.res?'#ff0000':'#00ff00');X.fillStyle=bc;X.beginPath();X.arc(bx,by,10,0,Math.PI*2);X.fill();
+if(pr>=.7){X.font='bold 15px Courier New';X.fillStyle=kvs.res?'#f00':'#0f0';X.fillText(kvs.res?'AGENT!':'CISTY',W/2,220)}
+else{X.font='12px Courier New';X.fillStyle='#ccc';X.fillText('Spojuji se s jemnohmotnym svetem...',W/2,220)}
+X.textAlign='left'}
 
-            platformy = [
-                { x: 0, y: 580, width: canvas.width, height: 20, typ: 'platformaParlament' }, // Podlaha
-                { x: 100, y: 500, width: 150, height: 20, typ: 'platformaParlament' }, { x: 550, y: 500, width: 150, height: 20, typ: 'platformaParlament' },
-                { x: 250, y: 420, width: 300, height: 20, typ: 'platformaParlament' }, { x: 150, y: 320, width: 100, height: 20, typ: 'platformaParlament' },
-                { x: 550, y: 320, width: 100, height: 20, typ: 'platformaParlament' }, { x: 350, y: 220, width: 100, height: 20, typ: 'platformaParlament' },
-            ];
-            nepratele = [
-                { id: 3, typ: 'zkorumpovanyPolitik', x: 120, y: 450, width: 40, height: 50, startX: 120, endX: 230, smer: 1 },
-                { id: 4, typ: 'zkorumpovanyPolitik', x: 570, y: 450, width: 40, height: 50, startX: 570, endX: 680, smer: 1 },
-                { id: 5, typ: 'agentGRU', x: 300, y: 370, width: 40, height: 50, startX: 270, endX: 500, smer: 1, strely: [], cooldown: 100 },
-                { id: 6, typ: 'zkorumpovanyPolitik', x: 380, y: 170, width: 40, height: 50, startX: 380, endX: 380, smer: 0 }
-             ];
-            sberatelne = [
-                { typ: 'dulezityDokument', x: 600, y: 290, width: 25, height: 20, sebrano: false }, { typ: 'dulezityDokument', x: 180, y: 290, width: 25, height: 20, sebrano: false },
-                { typ: 'dulezityDokument', x: 750, y: 550, width: 25, height: 20, sebrano: false }, { typ: 'cistaPravda', x: 400, y: 550, width: 25, height: 25, sebrano: false }
-            ];
-             // Přidán viditelný vchod do další úrovně
-            vychody.push({ x: canvas.width - 60, y: 580 - 80, width: 50, height: 80, typ: 'vchod', cil: 3 });
-        }
+function wt(tx,x,y,mw,lh){let w=tx.split(' '),l='';for(let i=0;i<w.length;i++){let t=l+w[i]+' ';if(X.measureText(t).width>mw&&i>0){X.fillText(l,x,y);l=w[i]+' ';y+=lh}else l=t}X.fillText(l,x,y)}
 
-        function inicializovatUroven3_DiagHuman() {
-            canvas.style.backgroundImage = pozadi.diagHuman;
-            canvas.style.backgroundColor = '#e0e0e0';
-            skore += 2000; // Bonus za postup
-            ukazDialog("Kauza Diag Human", "Pronikl jsi do sídla, kde se skrývají ti, kdo stojí za 'tunelem plným krve'. Miliardář Stava (KGB?) a jeho přátelé okradli náš stát. Získej zpět ukradený majetek a poraz hlavního viníka!");
-            aktualizovatUkol(5, "Najdi 3 kufry s ukradeným majetkem a postav se agentu Stávovi (KGB?).");
+// === HUD ===
+function updHUD(){let h='';for(let i=0;i<lives;i++)h+='\u2665';document.getElementById('hl').textContent=h||'\u2620';
+document.getElementById('hh').textContent='ZDRAVI: '+Math.ceil(P.hp)+'%';
+document.getElementById('hs').textContent='SKORE: '+score;
+document.getElementById('ho').textContent=obj.t+(obj.d?' \u2713':'')}
 
-            platformy = [
-                { x: 0, y: 580, width: canvas.width, height: 20, typ: 'platformaLaborator' }, { x: 100, y: 480, width: 100, height: 15, typ: 'platformaLaborator' },
-                { x: 250, y: 400, width: 100, height: 15, typ: 'platformaLaborator' }, { x: 400, y: 320, width: 100, height: 15, typ: 'platformaLaborator' },
-                { x: 550, y: 240, width: 100, height: 15, typ: 'platformaLaborator' }, { x: 350, y: 160, width: 150, height: 20, typ: 'platformaLaborator' }, // Boss platforma
-                { x: 0, y: 250, width: 150, height: 15, typ: 'platformaLaborator' },
-            ];
-            nepratele = [
-                { id: 7, typ: 'agentGRU', x: 270, y: 350, width: 40, height: 50, startX: 260, endX: 340, smer: 1, strely: [], cooldown: 150 },
-                { id: 8, typ: 'medialniManipulator', x: 50, y: 200, width: 40, height: 50, startX: 20, endX: 130, smer: 1 },
-                // BOSS
-                { id: 99, typ: 'bossStavaKGB', x: 400, y: 100, width: 60, height: 60, zdravi: 200, startX: 360, endX: 480, smer: 1 }
-            ];
-            sberatelne = [
-                { typ: 'dulezityDokument', nazev: 'kufr', x: 120, y: 450, width: 30, height: 20, sebrano: false },
-                { typ: 'dulezityDokument', nazev: 'kufr', x: 570, y: 210, width: 30, height: 20, sebrano: false },
-                { typ: 'dulezityDokument', nazev: 'kufr', x: 20, y: 220, width: 30, height: 20, sebrano: false },
-                { typ: 'cistaPravda', x: 300, y: 550, width: 25, height: 25, sebrano: false }
-            ];
-        }
+// === LEVELS ===
+function loadLv(n){
+lv=n;plats=[];ens=[];npcs=[];its=[];exs=[];hzs=[];projs=[];parts=[];cd=null;dq=[];kvs=null;obj={t:'',d:false};
+P=mkP(50,500);
+if(n===0)lv0();else if(n===1)lv1();else if(n===2)lv2();else if(n===3)lv3();else if(n===4)lv4();else if(n===5)lv5();else if(n===6)lv6();
+st='playing'}
 
-        window.addEventListener('keydown', (e) => {
-            if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(e.code) > -1) { e.preventDefault(); }
-            klavesy[e.code] = true;
-            if (e.code === 'KeyE' && dialog) { zavritDialog(); }
-            else if (e.code === 'KeyE') { zkusitInterakci(); }
-        });
-        window.addEventListener('keyup', (e) => { klavesy[e.code] = false; });
+function lv0(){ // Cibulkuv byt - Tutorial
+lvW=800;
+plats.push({x:0,y:580,w:800,h:20},{x:100,y:480,w:150,h:16},{x:350,y:420,w:120,h:16},{x:550,y:350,w:150,h:16},{x:200,y:300,w:100,h:16});
+its.push({tp:'kyv',x:380,y:392,w:22,h:22,col:false});
+its.push({tp:'hp',x:580,y:322,w:20,h:20,col:false});
+npcs.push({id:1,x:650,y:530,w:30,h:50,isA:false,rev:false,fled:false,int:false,
+dlg:{t:'Pani Novakova',tx:'Dobry den, pane Cibulko! Co se deje? Zase ti agenti? No, ja nevim... ja jsem normalni clovek...',cb:function(){dlg("CIBULKA","Pani Novakova, STUJTE! Musim vas PROVERIT KYVADLEM! Stiskni K pobliz ni!")}}});
+exs.push({x:740,y:510,w:50,h:70});
+dlg("CIBULKA SE PROBOUZI","PROBOUZIM SE A KYVADLO SE MOTA JAKO BLAZEN! Dnes je to HORSI nez kdy driv! AGENTI GRU se rozlezli po cele Praze! Musim najit sve SIDERICKE KYVADLO a vyrazit do boje! VOLTE PRAVY BLOK!");
+sObj("Najdi Sidericke Kyvadlo a prover sousedku")}
 
-        function vykresli() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+function lv1(){ // Ulice Prahy
+lvW=2400;score+=500;
+plats.push({x:0,y:580,w:600,h:20},{x:150,y:480,w:200,h:16},{x:500,y:420,w:150,h:16},{x:700,y:500,w:200,h:16},{x:950,y:420,w:120,h:16},{x:1100,y:580,w:400,h:20},{x:1200,y:480,w:100,h:16},{x:1350,y:400,w:150,h:16},{x:1550,y:500,w:200,h:16},{x:1800,y:580,w:600,h:20},{x:1900,y:460,w:150,h:16},{x:2100,y:380,w:120,h:16});
+ens.push({tp:'gru',x:500,y:370,w:35,h:45,sx:450,ex:630,dr:1,sp:2,hp:1,mhp:1,al:true,cd:120,cdm:120});
+ens.push({tp:'gru',x:1300,y:350,w:35,h:45,sx:1200,ex:1480,dr:1,sp:2,hp:1,mhp:1,al:true,cd:100,cdm:100});
+ens.push({tp:'man',x:1900,y:410,w:35,h:45,sx:1900,ex:2040,dr:1,sp:1.5,hp:1,mhp:1,al:true,cd:999,cdm:999});
+npcs.push({id:2,x:300,y:530,w:30,h:50,isA:false,rev:false,fled:false,int:false,dlg:{t:'Kolemjdouci',tx:'Cibulka? Ten blazen co vsude vidi agenty? No... kazdy ma pravo na nazor...'}});
+npcs.push({id:3,x:800,y:450,w:30,h:50,isA:true,rev:false,fled:false,int:false,dlg:{t:'Podezrely muz',tx:'Ehm... ja jen... koukam na pamatky... *nervozne se diva*'}});
+npcs.push({id:4,x:1600,y:450,w:30,h:50,isA:true,rev:false,fled:false,int:false,dlg:{t:'Dalsi podezrely',tx:'Nemas tu co delat, starce! Jdi domu a nech nas na pokoji!'}});
+npcs.push({id:5,x:2000,y:530,w:30,h:50,isA:false,rev:false,fled:false,int:false,dlg:{t:'Starsena',tx:'Pane Cibulko! Ja vas ctu na internetu! Mate PRAVDU! Agenti jsou vsude!'}});
+its.push({tp:'sig',x:180,y:452,w:18,h:18,col:false},{tp:'sig',x:960,y:392,w:18,h:18,col:false},{tp:'sig',x:1560,y:472,w:18,h:18,col:false});
+its.push({tp:'loud',x:520,y:395,w:30,h:25,col:false},{tp:'loud',x:1380,y:375,w:30,h:25,col:false});
+its.push({tp:'hp',x:1210,y:452,w:20,h:20,col:false},{tp:'hp',x:2120,y:352,w:20,h:20,col:false});
+exs.push({x:2340,y:510,w:50,h:70});
+dlg("ULICE PRAHY","ULICE PRAHY! Vsude se to hemzi AGENTY! Ale ja mam KYVADLO a PRAVDU na sve strane! Znic vysilace lzi, seber podpisy a ODHAL skryte agenty! Vice na www.cibulka.net!");
+sObj("Odhal 2 agenty (K), seber 3 podpisy, znic 2 vysilace")}
 
-            const typPlatformy = aktualniUroven === 1 ? 'platforma' : (aktualniUroven === 2 ? 'platformaParlament' : 'platformaLaborator');
+function lv2(){ // Redakce novin
+lvW=1600;score+=500;
+plats.push({x:0,y:580,w:400,h:20},{x:100,y:480,w:180,h:16},{x:350,y:400,w:200,h:16},{x:600,y:500,w:200,h:16},{x:600,y:380,w:150,h:16},{x:850,y:580,w:350,h:20},{x:900,y:460,w:120,h:16},{x:1050,y:380,w:150,h:16},{x:1250,y:580,w:350,h:20},{x:1300,y:480,w:150,h:16},{x:1100,y:300,w:200,h:16});
+ens.push({tp:'man',x:200,y:430,w:35,h:45,sx:120,ex:260,dr:1,sp:1.5,hp:1,mhp:1,al:true,cd:999,cdm:999});
+ens.push({tp:'man',x:700,y:330,w:35,h:45,sx:610,ex:740,dr:1,sp:2,hp:1,mhp:1,al:true,cd:999,cdm:999});
+ens.push({tp:'gru',x:1050,y:330,w:35,h:45,sx:1050,ex:1190,dr:1,sp:2,hp:1,mhp:1,al:true,cd:80,cdm:80});
+ens.push({tp:'mb',x:1150,y:240,w:45,h:55,sx:1100,ex:1280,dr:1,sp:1,hp:120,mhp:120,al:true,cd:90,cdm:90,ph:1});
+npcs.push({id:6,x:450,y:350,w:30,h:50,isA:false,rev:false,fled:false,int:false,dlg:{t:'Mlady novinar',tx:'Pane Cibulko, ja vim ze to tady neni OK. Ale co mam delat? Mam rodinu...'}});
+npcs.push({id:7,x:950,y:410,w:30,h:50,isA:true,rev:false,fled:false,int:false,dlg:{t:'Sefredaktor',tx:'Cibulka! Vy tu nemate co delat! Nase noviny jsou NEZAVISLE!'}});
+its.push({tp:'press',x:160,y:455,w:30,h:25,col:false},{tp:'press',x:660,y:475,w:30,h:25,col:false});
+its.push({tp:'doc',x:370,y:372,w:22,h:18,col:false},{tp:'doc',x:1320,y:452,w:22,h:18,col:false});
+its.push({tp:'hp',x:620,y:352,w:20,h:20,col:false});
+exs.push({x:1540,y:510,w:50,h:70});
+dlg("REDAKCE NOVIN","REDAKCE! Tady se rodi DEZINFORMACE! Kazdy clanek je RIZENA PROVOKACE zahranicnich rozvedek! Znic tiskarny, najdi dokumenty a poraz SEFREDAKTORA!");
+sObj("Znic 2 tiskarny, najdi 2 dokumenty, poraz sefredaktora")}
 
-            platformy.forEach(p => {
-                ctx.fillStyle = (p.typ === 'vysilacLzi' && !p.zniceno) ? skiny.vysilacLzi : skiny[typPlatformy];
-                if (p.typ === 'vysilacLzi' && p.zniceno) { ctx.fillStyle = '#ff0000'; }
-                ctx.fillRect(p.x, p.y, p.width, p.height);
-            });
-            
-            vychody.forEach(v => {
-                ctx.fillStyle = skiny.vchod;
-                ctx.fillRect(v.x, v.y, v.width, v.height);
-                ctx.fillStyle = '#000'; ctx.font = 'bold 14px Courier New';
-                ctx.fillText("BRÁNA", v.x + 4, v.y + v.height / 2);
-            });
+function lv3(){ // Karluv most
+lvW=3200;score+=500;
+plats.push({x:0,y:560,w:3200,h:40});
+for(let i=0;i<12;i++)plats.push({x:100+i*260,y:440+Math.sin(i)* 30,w:80,h:16});
+for(let i=0;i<8;i++)plats.push({x:200+i*370,y:340+(i%2)*20,w:70,h:16});
+ens.push({tp:'gru',x:800,y:510,w:35,h:45,sx:700,ex:950,dr:1,sp:2,hp:1,mhp:1,al:true,cd:100,cdm:100});
+ens.push({tp:'gru',x:2200,y:510,w:35,h:45,sx:2100,ex:2400,dr:1,sp:2,hp:1,mhp:1,al:true,cd:100,cdm:100});
+npcs.push({id:8,x:300,y:510,w:30,h:50,isA:false,rev:false,fled:false,int:false,dlg:{t:'Turista',tx:'Oh, Praha je krasna! *fotka* Very beautiful!'}});
+npcs.push({id:9,x:600,y:510,w:30,h:50,isA:true,rev:false,fled:false,int:false,dlg:{t:'Turista s mapou',tx:'Ehm... ano, ja jsem turista... z Moskvy... ehm, chci rici z Mnichova!'}});
+npcs.push({id:10,x:1200,y:510,w:30,h:50,isA:false,rev:false,fled:false,int:false,dlg:{t:'Poulic\u00ed muzikant',tx:'*hraje na kytaru* Hezky den, pane!'}});
+npcs.push({id:11,x:1600,y:510,w:30,h:50,isA:true,rev:false,fled:false,int:false,dlg:{t:'Muz s kufrikem',tx:'Nemam cas na hovory. Mam... ehm... obchodni schuzku.'}});
+npcs.push({id:12,x:2000,y:510,w:30,h:50,isA:false,rev:false,fled:false,int:false,dlg:{t:'Babicka',tx:'Pane Cibulko, ja vas znam z televize! Jste ten s tim kyvadlem!'}});
+npcs.push({id:13,x:2600,y:510,w:30,h:50,isA:true,rev:false,fled:false,int:false,dlg:{t:'Muz v obleku',tx:'Cibulka?! *sahne do kapsy* Ehm... neni tu nic... to je jen telefon...'}});
+npcs.push({id:14,x:2900,y:510,w:30,h:50,isA:false,rev:false,fled:false,int:false,dlg:{t:'Student',tx:'Hele, to je ten Cibulka! Kamaradi mi o vam rikali. Je to pravda o tech agentech?'}});
+its.push({tp:'doc',x:500,y:532,w:22,h:18,col:false},{tp:'hp',x:1400,y:532,w:20,h:20,col:false},{tp:'doc',x:2400,y:532,w:22,h:18,col:false});
+exs.push({x:3140,y:490,w:50,h:70});
+dlg("KARLUV MOST","KARLUV MOST! I tady operuji agenti! Prevleceni za TURISTY! Ale me KYVADLO je NEOMYLNE! Pouzij ho na KAZDOU podezrelou osobu! Najdi VSECHNY TRI agenty!");
+sObj("Odhal 3 skryte agenty na moste pomoci Kyvadla (K)")}
 
-            if (aktualniUroven === 2 && psychotronickyRusic.aktivni) {
-                ctx.fillStyle = '#ff00ff';
-                ctx.globalAlpha = 0.5 + Math.abs(Math.sin(Date.now() / 200)) * 0.5;
-                ctx.fillRect(psychotronickyRusic.x, psychotronickyRusic.y, psychotronickyRusic.width, psychotronickyRusic.height);
-                ctx.globalAlpha = 1;
-            }
+function lv4(){ // Parlament
+lvW=2000;score+=500;
+plats.push({x:0,y:580,w:500,h:20},{x:150,y:480,w:150,h:16},{x:400,y:400,w:200,h:16},{x:650,y:500,w:150,h:16},{x:700,y:380,w:120,h:16},{x:550,y:300,w:100,h:16},{x:850,y:580,w:400,h:20},{x:900,y:460,w:150,h:16},{x:1100,y:380,w:120,h:16},{x:1300,y:580,w:700,h:20},{x:1400,y:480,w:150,h:16},{x:1600,y:400,w:150,h:16},{x:1350,y:320,w:200,h:16});
+ens.push({tp:'pol',x:200,y:430,w:35,h:45,sx:160,ex:290,dr:1,sp:1.5,hp:1,mhp:1,al:true,cd:999,cdm:999});
+ens.push({tp:'gru',x:750,y:330,w:35,h:45,sx:710,ex:810,dr:1,sp:2,hp:1,mhp:1,al:true,cd:90,cdm:90});
+ens.push({tp:'pol',x:1000,y:410,w:35,h:45,sx:910,ex:1040,dr:1,sp:1.5,hp:1,mhp:1,al:true,cd:999,cdm:999});
+ens.push({tp:'gru',x:1500,y:430,w:35,h:45,sx:1410,ex:1540,dr:1,sp:2,hp:1,mhp:1,al:true,cd:100,cdm:100});
+npcs.push({id:15,x:500,y:350,w:30,h:50,isA:false,rev:false,fled:false,int:false,dlg:{t:'Poslanec',tx:'Pane Cibulko, ja s vami SOUHLASIM, ale nesmi se to vedet...'}});
+npcs.push({id:16,x:1150,y:330,w:30,h:50,isA:true,rev:false,fled:false,int:false,dlg:{t:'Ministr',tx:'Cibulka! Vy srite konspirace! Odejdete z budovy IHNED!'}});
+its.push({tp:'doc',x:170,y:452,w:22,h:18,col:false},{tp:'doc',x:570,y:272,w:22,h:18,col:false},{tp:'doc',x:1620,y:372,w:22,h:18,col:false});
+its.push({tp:'jam',x:1380,y:292,w:30,h:25,col:false});
+its.push({tp:'hp',x:680,y:472,w:20,h:20,col:false},{tp:'hp',x:1420,y:452,w:20,h:20,col:false});
+exs.push({x:1940,y:510,w:50,h:70});
+dlg("PARLAMENT CR","PARLAMENT! Nejvetsi ZUMPA v zemi! Polovina poslancu je na VYPLATNI PASCE KGB a GRU! To vam GARANTUJI! Najdi dokumenty, znic PSYCHOTRONICKY RUSIC a odhal PRAVDU!");
+sObj("Najdi 3 dokumenty, znic psychotronicky rusic")}
 
-            sberatelne.forEach(s => { if (!s.sebrano) { ctx.fillStyle = skiny[s.typ]; ctx.fillRect(s.x, s.y, s.width, s.height); } });
-            npcs.forEach(npc => {
-                ctx.fillStyle = skiny[npc.typ]; ctx.fillRect(npc.x, npc.y, npc.width, npc.height);
-                ctx.fillStyle = '#ffff00'; ctx.font = '24px Courier New'; ctx.fillText('!', npc.x + npc.width / 2 - 5, npc.y - 10);
-            });
-            nepratele.forEach(n => {
-                ctx.fillStyle = skiny[n.typ];
-                ctx.globalAlpha = n.zdravi ? n.zdravi / 200 : 1;
-                ctx.fillRect(n.x, n.y, n.width, n.height);
-                ctx.globalAlpha = 1;
-                if (n.typ === 'agentGRU') { n.strely.forEach(s => { ctx.fillStyle = skiny.strelaLzi; ctx.fillRect(s.x, s.y, s.width, s.height); }); }
-            });
+function lv5(){ // Tajne podzemi
+lvW=2400;score+=500;
+plats.push({x:0,y:580,w:300,h:20},{x:100,y:500,w:100,h:16},{x:350,y:520,w:150,h:16},{x:550,y:580,w:200,h:20},{x:550,y:440,w:120,h:16},{x:750,y:500,w:100,h:16},{x:900,y:580,w:300,h:20},{x:950,y:460,w:120,h:16},{x:1100,y:380,w:150,h:16},{x:1300,y:580,w:400,h:20},{x:1350,y:480,w:100,h:16},{x:1500,y:400,w:120,h:16},{x:1700,y:500,w:150,h:16},{x:1800,y:580,w:600,h:20},{x:1900,y:460,w:150,h:16},{x:2100,y:380,w:120,h:16});
+ens.push({tp:'gru',x:400,y:470,w:35,h:45,sx:360,ex:490,dr:1,sp:2,hp:1,mhp:1,al:true,cd:80,cdm:80});
+ens.push({tp:'gru',x:1000,y:410,w:35,h:45,sx:960,ex:1060,dr:1,sp:2.5,hp:1,mhp:1,al:true,cd:70,cdm:70});
+ens.push({tp:'man',x:1550,y:350,w:35,h:45,sx:1510,ex:1610,dr:1,sp:2,hp:1,mhp:1,al:true,cd:999,cdm:999});
+ens.push({tp:'gru',x:2150,y:330,w:35,h:45,sx:2110,ex:2210,dr:1,sp:2,hp:1,mhp:1,al:true,cd:90,cdm:90});
+hzs.push({x:300,y:570,w:50,h:10,dm:.3},{x:800,y:570,w:80,h:10,dm:.3},{x:1250,y:570,w:50,h:10,dm:.3});
+npcs.push({id:17,x:600,y:390,w:30,h:50,isA:true,rev:false,fled:false,int:false,dlg:{t:'Laborant',tx:'Vy tu nemate co delat! Toto je TAJNY vyzkum! Pro vase dobro ODEJDETE!'}});
+npcs.push({id:18,x:1400,y:430,w:30,h:50,isA:true,rev:false,fled:false,int:false,dlg:{t:'Vedec',tx:'Psychotronika je budoucnost! A vy, Cibulko, jste jen paranoik!'}});
+npcs.push({id:19,x:2000,y:410,w:30,h:50,isA:false,rev:false,fled:false,int:false,dlg:{t:'Uprchlý vezneny vedec',tx:'Cibulko! Konecne nekdo prisel! Maji tu PSYCHOTRONICKE ZBRANE! Svijas mel PRAVDU - jemnohmotny svet EXISTUJE a oni ho ZNEUZIVAJI!'}});
+its.push({tp:'doc',x:570,y:412,w:22,h:18,col:false},{tp:'doc',x:1920,y:432,w:22,h:18,col:false});
+its.push({tp:'hp',x:770,y:472,w:20,h:20,col:false},{tp:'hp',x:1370,y:452,w:20,h:20,col:false});
+exs.push({x:2340,y:510,w:50,h:70});
+dlg("TAJNE PODZEMI","Pod Prahou existuje SIT TAJNYCH TUNELU! Tady GRU provadi PSYCHOTRONICKY VYZKUM! Alexandr Svijas mel PRAVDU - jemnohmotny svet EXISTUJE a oni ho ZNEUZIVAJI! Precti si jeho knihu!");
+sObj("Najdi 2 dokumenty, odhal 2 agenty (K)")}
 
-            ctx.fillStyle = skiny.hrac;
-            ctx.fillRect(hrac.x, hrac.y, hrac.width, hrac.height);
+function lv6(){ // Centrala GRU - Final
+lvW=1600;score+=500;
+plats.push({x:0,y:580,w:400,h:20},{x:100,y:480,w:150,h:16},{x:350,y:400,w:200,h:16},{x:600,y:500,w:200,h:16},{x:600,y:380,w:120,h:16},{x:800,y:300,w:150,h:16},{x:1000,y:580,w:600,h:20},{x:1050,y:480,w:120,h:16},{x:1200,y:400,w:150,h:16},{x:1100,y:300,w:200,h:16},{x:400,y:280,w:100,h:16});
+ens.push({tp:'gru',x:200,y:430,w:35,h:45,sx:110,ex:240,dr:1,sp:2.5,hp:1,mhp:1,al:true,cd:70,cdm:70});
+ens.push({tp:'gru',x:650,y:330,w:35,h:45,sx:610,ex:710,dr:1,sp:2.5,hp:1,mhp:1,al:true,cd:60,cdm:60});
+ens.push({tp:'gru',x:1100,y:430,w:35,h:45,sx:1060,ex:1160,dr:1,sp:3,hp:1,mhp:1,al:true,cd:70,cdm:70});
+ens.push({tp:'man',x:1250,y:350,w:35,h:45,sx:1210,ex:1340,dr:1,sp:2,hp:1,mhp:1,al:true,cd:999,cdm:999});
+// BOSS
+ens.push({tp:'boss',x:1150,y:240,w:50,h:55,sx:1100,ex:1290,dr:1,sp:1.5,hp:300,mhp:300,al:true,cd:80,cdm:80,ph:1});
+its.push({tp:'doc',x:370,y:372,w:22,h:18,col:false},{tp:'hp',x:630,y:352,w:20,h:20,col:false},{tp:'hp',x:1070,y:452,w:20,h:20,col:false});
+exs.push({x:1540,y:510,w:50,h:70});
+dlg("CENTRALA GRU","CENTRALA GRU v Praze! Tady to SKONCI! PRAVDA ZVITEZI! HLAVNI REZIDENT GRU je tady! Ma 300 bodu zdravi - SKAKEJ mu na hlavu! VOLTE PRAVY BLOK! BOJ NIKDY NEKONCI!!!");
+sObj("PORAZ HLAVNIHO REZIDENTA GRU!!!")}
 
-            if (dialog) vykresliDialog();
-        }
-
-        function aktualizuj() {
-            if (dialog) return;
-
-            // Hráč
-            if (klavesy['ArrowLeft']) hrac.x -= hrac.rychlost;
-            if (klavesy['ArrowRight']) hrac.x += hrac.rychlost;
-            if (klavesy['Space'] && !hrac.skace) { hrac.rychlostY = -12; hrac.skace = true; }
-            hrac.y += hrac.rychlostY;
-            hrac.rychlostY += gravitace;
-
-            // Kolize s platformami
-            hrac.skace = true;
-            platformy.forEach(p => {
-                if (hrac.y + hrac.height > p.y && hrac.y < p.y + p.height && hrac.x + hrac.width > p.x && hrac.x < p.x + p.width) {
-                    if (hrac.rychlostY > 0 && hrac.y + hrac.height - hrac.rychlostY <= p.y) {
-                        hrac.y = p.y - hrac.height; hrac.rychlostY = 0; hrac.skace = false;
-                        if (p.typ === 'vysilacLzi' && !p.zniceno) { p.zniceno = true; skore += 50; zkontrolujUkol(); }
-                    } else if (hrac.rychlostY < 0 && hrac.y - hrac.rychlostY >= p.y + p.height) {
-                         hrac.y = p.y + p.height; hrac.rychlostY = 0;
-                    }
-                }
-            });
-
-            // Hranice obrazovky
-            if (hrac.x < 0) hrac.x = 0;
-            if (hrac.x + hrac.width > canvas.width) hrac.x = canvas.width - hrac.width;
-            if (hrac.y > canvas.height) hrac.zdravi = 0;
-
-            // Přechod do další úrovně přes bránu
-            vychody.forEach(v => {
-                if (jeKolize(hrac, v)) {
-                    if ((aktualniUroven === 1 && aktualniUkol.id === 3 && aktualniUkol.splneno) ||
-                        (aktualniUroven === 2 && aktualniUkol.id === 4 && aktualniUkol.splneno)) {
-                        nastavitUroven(v.cil);
-                    }
-                }
-            });
-
-            // Nepřátelé
-            nepratele.forEach(n => {
-                if (n.smer !== 0) n.x += n.smer * (n.typ === 'bossStavaKGB' ? 0.5 : 2);
-                if (n.x > n.endX || n.x < n.startX) n.smer *= -1;
-                if (n.typ === 'agentGRU' && --n.cooldown <= 0) { n.strely.push({ x: n.x, y: n.y + 20, width: 10, height: 10, smer: n.smer }); n.cooldown = 120; }
-                if(n.typ === 'agentGRU') n.strely.forEach((s, i) => {
-                    s.x += s.smer * 4;
-                    if (s.x < 0 || s.x > canvas.width) n.strely.splice(i, 1);
-                    if (jeKolize(hrac, s)) { zranHrace(10, 'dezinformací GRU'); n.strely.splice(i, 1); }
-                });
-                if (jeKolize(hrac, n)) {
-                    if (hrac.rychlostY > 0 && hrac.y + hrac.height - hrac.rychlostY <= n.y) {
-                        if (n.typ === 'bossStavaKGB') {
-                            n.zdravi -= 25; skore += 100; hrac.rychlostY = -8;
-                            if (n.zdravi <= 0) { nepratele = nepratele.filter(nep => nep.id !== n.id); zkontrolujUkol(); }
-                        } else { nepratele = nepratele.filter(nep => nep.id !== n.id); skore += 100; hrac.rychlostY = -5; }
-                    } else { zranHrace(0.5, 'střetem s agentem'); }
-                }
-            });
-
-            // Psychotronický rušič v parlamentu
-            if (aktualniUroven === 2 && psychotronickyRusic.aktivni) {
-                zranHrace(0.05, 'psychotronickým rušením');
-                if (jeKolize(hrac, psychotronickyRusic) && hrac.rychlostY > 0 && hrac.y + hrac.height - hrac.rychlostY <= psychotronickyRusic.y) {
-                    psychotronickyRusic.aktivni = false; skore += 500;
-                    ukazDialog("ÚSPĚCH!", "Zničil jsi psychotronický rušič GRU a osvobodil mysl přítomných! Boj pokračuje!");
-                    zkontrolujUkol();
-                }
-            }
-
-            // Sběratelné předměty
-            sberatelne.forEach(s => {
-                if (!s.sebrano && jeKolize(hrac, s)) {
-                    s.sebrano = true;
-                    if (s.typ === 'cistaPravda') hrac.zdravi = Math.min(100, hrac.zdravi + 25); else skore += 50;
-                    zkontrolujUkol();
-                }
-            });
-
-            if (hrac.zdravi <= 0) stavHry = 'prohra';
-        }
-
-        function zkontrolujUkol() {
-            switch(aktualniUkol.id) {
-                case 1:
-                    if (platformy.filter(p => p.typ === 'vysilacLzi' && p.zniceno).length >= 2) {
-                        aktualniUkol.splneno = true; ukazDialog("Úspěch!", "Zničil jsi vysílače lží! Vrať se za čestným občanem.");
-                    }
-                    break;
-                case 2:
-                    if (sberatelne.filter(s => s.typ === 'hlasProReferendum' && s.sebrano).length >= 3) {
-                        aktualniUkol.splneno = true; ukazDialog("Máme je!", "Shromáždil jsi dostatek hlasů! Promluv si znovu s naším spojencem.");
-                    }
-                    break;
-                case 4:
-                    const dokumenty = sberatelne.filter(s => s.typ === 'dulezityDokument' && s.sebrano).length;
-                    if (dokumenty >= 3 && !psychotronickyRusic.aktivni) {
-                        aktualniUkol.splneno = true;
-                        ukazDialog("Důkazy Zajištěny!", "Máte důkazy o vlastizradě a zničili jste nástroj GRU! Nyní opusťte parlament bránou vpravo a odhalte pravdu světu v kauze Diag Human!");
-                    }
-                    break;
-                case 5:
-                    const kufry = sberatelne.filter(s => s.nazev === 'kufr' && s.sebrano).length;
-                    const bossPorazen = !nepratele.some(n => n.typ === 'bossStavaKGB');
-                    if (kufry >= 3 && bossPorazen) { aktualniUkol.splneno = true; stavHry = 'vyhra'; }
-                    break;
-            }
-        }
-
-        function smyckaHry() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            if (stavHry === 'start') {
-                ctx.fillStyle = '#ffcc00'; ctx.font = '30px Courier New'; ctx.textAlign = 'center';
-                ctx.fillText("NEVĚŘÍTE POLITIKŮM A JEJICH NOVINÁŘŮM?", canvas.width/2, 200);
-                ctx.font = '40px Courier New'; ctx.fillText("NO KONEČNĚ!", canvas.width/2, 250);
-                ctx.font = '24px Courier New'; ctx.fillStyle = '#fff';
-                ctx.fillText("Stiskněte ENTER pro zahájení boje za PRAVDU!", canvas.width/2, 350);
-                if (klavesy['Enter']) { nastavitUroven(1); stavHry = 'hraje'; }
-            } else if (stavHry === 'hraje') {
-                aktualizuj(); vykresli();
-                document.getElementById('zdravi').textContent = `ZDRAVÍ: ${Math.ceil(hrac.zdravi)}%`;
-                document.getElementById('skore').textContent = `SKÓRE PRAVDY: ${skore}`;
-                document.getElementById('text-ukolu').textContent = aktualniUkol.popis;
-            } else if (stavHry === 'prohra') {
-                ctx.fillStyle = '#ff0000'; ctx.font = '30px Courier New'; ctx.textAlign = 'center';
-                ctx.fillText("ZLOČINECKÉ STRUKTURY KGB/GRU ZVÍTĚZILY!", canvas.width/2, 250);
-                ctx.font = '24px Courier New'; ctx.fillStyle = '#fff';
-                ctx.fillText("Stiskněte ENTER a zkuste to znovu. Boj nikdy nekončí!", canvas.width/2, 350);
-                if (klavesy['Enter']) { stavHry = 'start'; skore = 0; }
-            } else if (stavHry === 'vyhra') {
-                ctx.fillStyle = '#00ff00'; ctx.font = '30px Courier New'; ctx.textAlign = 'center';
-                wrapText("VÍTĚZSTVÍ PRAVDY! DÍKY VÁM JSOU ZLOČINCI Z KGB/GRU ODHALENI A POLITICI BUDOU ODVOLATELNÍ PŘÍMO OBČANY!", canvas.width/2, 250, canvas.width - 100, 35);
-                ctx.font = '24px Courier New'; ctx.fillStyle = '#fff';
-                ctx.fillText("Stiskněte ENTER a šiřte pravdu dál!", canvas.width/2, 400);
-                if (klavesy['Enter']) { stavHry = 'start'; skore = 0; }
-            }
-
-            requestAnimationFrame(smyckaHry);
-        }
-
-        // --- POMOCNÉ FUNKCE ---
-        function zranHrace(kolik, cim) { hrac.zdravi -= kolik; if (hrac.zdravi < 0) hrac.zdravi = 0; }
-        function jeKolize(obj1, obj2) { return obj1.x < obj2.x + obj2.width && obj1.x + obj1.width > obj2.x && obj1.y < obj2.y + obj2.height && obj1.y + obj1.height > obj2.y; }
-        function aktualizovatUkol(id, popis) { aktualniUkol = { id, popis, splneno: false }; }
-        function ukazDialog(nadpis, text) { dialog = { nadpis, text }; }
-        function zavritDialog() { dialog = null; }
-        function zkusitInterakci() {
-            npcs.forEach(npc => {
-                if (Math.abs(hrac.x - npc.x) < 70 && Math.abs(hrac.y - npc.y) < 70) {
-                    let dialogInfo = npc.dialogy.find(d => d.ukolId === aktualniUkol.id && (d.ukolId === 0 || aktualniUkol.splneno));
-                    if (dialogInfo) {
-                        ukazDialog("Rozhovor s čestným občanem", dialogInfo.text);
-                        aktualizovatUkol(aktualniUkol.id + 1, "Nový úkol se brzy objeví...");
-                        if (aktualniUkol.id === 1) aktualniUkol.popis = "Znič 2 vysílače lží (šedé věže).";
-                        if (aktualniUkol.id === 2) aktualniUkol.popis = "Seber 3 podpisové archy (žluté čtverečky).";
-                        if (aktualniUkol.id === 3) {
-                            aktualniUkol.popis = "Dostaň se do parlamentu skrz bránu vpravo.";
-                            aktualniUkol.splneno = true;
-                        }
-                    }
-                }
-            });
-        }
-        function vykresliDialog() {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'; ctx.fillRect(100, canvas.height/2 - 100, canvas.width - 200, 200);
-            ctx.strokeStyle = '#ffcc00'; ctx.strokeRect(100, canvas.height/2 - 100, canvas.width - 200, 200);
-            ctx.fillStyle = '#ffcc00'; ctx.font = 'bold 20px Courier New'; ctx.textAlign = 'center';
-            ctx.fillText(dialog.nadpis, canvas.width / 2, canvas.height/2 - 70);
-            ctx.fillStyle = '#ffffff'; ctx.font = '16px Courier New';
-            wrapText(dialog.text, canvas.width / 2, canvas.height/2 - 30, canvas.width - 240, 20);
-            ctx.fillStyle = '#aaaaaa'; ctx.font = '14px Courier New';
-            ctx.fillText("Stiskněte 'E' pro pokračování", canvas.width / 2, canvas.height/2 + 80);
-            ctx.textAlign = 'left';
-        }
-        function wrapText(text, x, y, maxWidth, lineHeight) {
-            const words = text.split(' '); let line = '';
-            for(let n = 0; n < words.length; n++) {
-                let testLine = line + words[n] + ' '; let metrics = ctx.measureText(testLine);
-                if (metrics.width > maxWidth && n > 0) { ctx.fillText(line, x, y); line = words[n] + ' '; y += lineHeight; } else { line = testLine; }
-            }
-            ctx.fillText(line, x, y);
-        }
-
-        // Spuštění hry
-        smyckaHry();
-    </script>
+// === MAIN LOOP ===
+function loop(){
+fr++;
+if(st==='menu'){
+X.fillStyle='#111';X.fillRect(0,0,W,H);
+X.fillStyle='#ffcc00';X.font='bold 28px Courier New';X.textAlign='center';
+X.fillText('CIBULKA: BOJ ZA PRAVDU!',W/2,120);
+X.font='18px Courier New';X.fillStyle='#fff';
+wt('NEVERITE POLITIKUM A JEJICH NOVINARIUM? NO KONECNE! Petr Cibulka vyrazi do boje proti AGENTUM KGB a GRU! Vyzbrojte se SIDERICKEM KYVADLEM a ODHALTE PRAVDU!',W/2,180,W-100,22);
+X.fillStyle='#ffcc00';X.font='bold 16px Courier New';
+X.fillText('VOLTE PRAVY BLOK!',W/2,320);
+X.fillStyle='#f00';X.font='bold 14px Courier New';
+X.fillText('www.cibulka.net',W/2,350);
+X.fillStyle='#0f0';X.font='20px Courier New';
+let blink=Math.sin(fr*.05)>.2;
+if(blink)X.fillText('>>> Stiskni ENTER pro zahajeni boje <<<',W/2,430);
+X.fillStyle='#888';X.font='12px Courier New';
+X.fillText('7 urovni | Sidericke Kyvadlo | ~15 minut',W/2,480);
+X.fillText('Sipky=pohyb | Mezera=skok | E=interakce | K=kyvadlo',W/2,500);
+X.textAlign='left';
+if(ck('Enter')){lives=3;score=0;hasKyv=false;loadLv(0)}
+}else if(st==='playing'){
+updP();updEn();updIt();updParts();updCam();render();updHUD();
+}else if(st==='dialog'){
+render();if(ck('KeyE'))cdlg();
+}else if(st==='kyvadlo'){
+updKyv();render();
+}else if(st==='dead'){
+render();dtmr--;
+if(dtmr<=0){lives--;if(lives<=0){st='gameover'}else{loadLv(lv)}}
+}else if(st==='gameover'){
+X.fillStyle='#111';X.fillRect(0,0,W,H);
+X.fillStyle='#ff0000';X.font='bold 26px Courier New';X.textAlign='center';
+X.fillText('ZLOCINECKE STRUKTURY KGB/GRU',W/2,200);
+X.fillText('ZVITEZILY!',W/2,235);
+X.fillStyle='#fff';X.font='18px Courier New';
+X.fillText('Ale BOJ NIKDY NEKONCI!',W/2,300);
+X.fillText('Konecne skore: '+score,W/2,340);
+X.fillStyle='#ffcc00';X.font='16px Courier New';
+let blink=Math.sin(fr*.05)>.2;
+if(blink)X.fillText('Stiskni ENTER a zkus to znovu!',W/2,420);
+X.textAlign='left';updHUD();
+if(ck('Enter')){st='menu'}
+}else if(st==='levelEnd'){
+letmr--;if(letmr<=0){if(lv<6)loadLv(lv+1);else{st='victory'}}
+}else if(st==='victory'){
+X.fillStyle='#050f05';X.fillRect(0,0,W,H);
+X.fillStyle='#00ff00';X.font='bold 26px Courier New';X.textAlign='center';
+X.fillText('VITEZSTVI PRAVDY!!!',W/2,100);
+X.fillStyle='#fff';X.font='14px Courier New';
+wt('AGENTI GRU A KGB JSOU ODHALENI!!! Cely SEZNAM je na www.cibulka.net! VOLTE PRAVY BLOK! Prectete si knihu "Jak ziskavat informace z jemnohmotneho sveta" od Alexandra Grigorjevice Svijase! KAZDY si muze osvojit praci se SIDERICKEM KYVADLEM! BOJ NIKDY NEKONCI!!!',W/2,160,W-120,20);
+X.fillStyle='#ffcc00';X.font='bold 20px Courier New';
+X.fillText('KONECNE SKORE: '+score,W/2,340);
+X.fillText('VOLTE PRAVY BLOK!',W/2,380);
+X.fillStyle='#f00';X.font='14px Courier New';
+X.fillText('www.cibulka.net',W/2,410);
+X.fillStyle='#0f0';X.font='16px Courier New';
+let blink=Math.sin(fr*.05)>.2;
+if(blink)X.fillText('Stiskni ENTER',W/2,470);
+X.textAlign='left';updHUD();
+if(ck('Enter')){st='menu'}}
+for(let k in JP)JP[k]=false;
+requestAnimationFrame(loop)}
+loop();
+</script>
 </body>
 </html>
